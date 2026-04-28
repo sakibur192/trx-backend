@@ -37,25 +37,38 @@ const sendMainMenu = async (chatId) => {
 // ======================
 const sendGroupMenu = async () => {
   try {
-    const msg = await bot.sendMessage(GROUP_ID, "💰 *Main Menu*\nAlways use buttons below:", {
-      parse_mode: "Markdown",
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: "💰 Deposit", callback_data: "deposit" },
-            { text: "💸 Withdraw", callback_data: "withdraw" }
-          ],
-          [
-            { text: "🆘 Support", callback_data: "support" }
+    const msg = await bot.sendMessage(GROUP_ID,
+      "💰 *TRX CONTROL PANEL*\n_Select an option below:_",
+      {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: "💰 Deposit",
+                url: "https://t.me/master_vai_bot?start=deposit"
+              },
+              {
+                text: "💸 Withdraw",
+                url: "https://t.me/master_vai_bot?start=withdraw"
+              }
+            ],
+            [
+              {
+                text: "🆘 Support",
+                url: "https://t.me/master_vai_bot?start=support"
+              }
+            ]
           ]
-        ]
+        }
       }
+    );
+
+    await bot.pinChatMessage(GROUP_ID, msg.message_id, {
+      disable_notification: true
     });
 
-    // PIN MESSAGE (THIS IS THE KEY)
-    await bot.pinChatMessage(GROUP_ID, msg.message_id);
-
-    console.log("📌 Menu sent and pinned");
+    console.log("📌 Clean control panel pinned");
   } catch (err) {
     console.log("Menu error:", err.message);
   }
