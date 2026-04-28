@@ -4,49 +4,37 @@ const axios = require('axios');
 // ======================
 // CONFIG
 // ======================
-const TOKEN = "8595998350:AAGQf-51yj0e6BqpHyheDNCq2I_wBfZEf8I"; // ⚠️ move to env later
-const API = "http://187.127.145.228:4000";
-const GROUP_ID = -1003923871636;
+const TOKEN = "8595998350:AAGMJ4chtTaCCN9aOKll7LCZuYfoi7yzhxo"; // replace this
+const API = "//http://187.127.145.228:4000"; // backend API
+const GROUP_ID = -1003923871636; // your group id
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
 console.log("🤖 Bot is running...");
 
 // ======================
-// INLINE MAIN MENU
-// ======================
-const sendMainMenu = async (chatId) => {
-  return bot.sendMessage(chatId, "💰 *Main Menu*\nChoose an option:", {
-    parse_mode: "Markdown",
-    reply_markup: {
-      inline_keyboard: [
-        [
-          { text: "💰 Deposit", callback_data: "deposit" },
-          { text: "💸 Withdraw", callback_data: "withdraw" }
-        ],
-        [
-          { text: "🆘 Support", callback_data: "support" }
-        ]
-      ]
-    }
-  });
-};
-
-// ======================
-// GROUP MENU (CLEAN VERSION)
+// SEND GROUP MENU (ON START)
 // ======================
 const sendGroupMenu = async () => {
   try {
-    await bot.sendMessage(GROUP_ID, "💰 *System Menu*", {
-      parse_mode: "Markdown",
+    await bot.sendMessage(GROUP_ID, "💰 Welcome to System", {
       reply_markup: {
         inline_keyboard: [
           [
-            { text: "💰 Deposit", callback_data: "deposit" },
-            { text: "💸 Withdraw", callback_data: "withdraw" }
+            {
+              text: "💰 Deposit",
+              url: "https://t.me/YOUR_BOT?start=deposit"
+            },
+            {
+              text: "💸 Withdraw",
+              url: "https://t.me/YOUR_BOT?start=withdraw"
+            }
           ],
           [
-            { text: "🆘 Support", callback_data: "support" }
+            {
+              text: "🆘 Support",
+              url: "https://t.me/YOUR_BOT?start=support"
+            }
           ]
         ]
       }
@@ -58,46 +46,41 @@ const sendGroupMenu = async () => {
   }
 };
 
+// run once
 sendGroupMenu();
 
 // ======================
-// HANDLE INLINE BUTTONS
+// HANDLE /start COMMANDS
 // ======================
-bot.on("callback_query", async (query) => {
-  const chatId = query.message.chat.id;
-  const data = query.data;
+bot.onText(/\/start(?: (.+))?/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const param = match?.[1];
 
-  await bot.answerCallbackQuery(query.id);
+  if (!param) {
+    return bot.sendMessage(chatId, "👋 Welcome! Use group buttons.");
+  }
 
-  if (data === "deposit") {
+  if (param === "deposit") {
     return bot.sendMessage(chatId,
       "💰 Deposit Mode\n\nSend:\nTRX_ID AMOUNT SENDER\n\nExample:\nTRX123 500 bKash"
     );
   }
 
-  if (data === "withdraw") {
+  if (param === "withdraw") {
     return bot.sendMessage(chatId,
       "💸 Withdraw Mode\n\nSend:\nAMOUNT METHOD ACCOUNT\n\nExample:\n500 bkash 017XXXXXXXX"
     );
   }
 
-  if (data === "support") {
+  if (param === "support") {
     return bot.sendMessage(chatId,
-      "🆘 Support: Contact admin @your_username"
+      "🆘 Support:\nContact admin @your_username"
     );
   }
 });
 
 // ======================
-// START COMMAND
-// ======================
-bot.onText(/\/start/, async (msg) => {
-  const chatId = msg.chat.id;
-  await sendMainMenu(chatId);
-});
-
-// ======================
-// HANDLE MESSAGES
+// HANDLE USER MESSAGES
 // ======================
 bot.on('message', async (msg) => {
   const text = msg.text;
@@ -105,16 +88,13 @@ bot.on('message', async (msg) => {
 
   if (!text || text.startsWith('/')) return;
 
-  const parts = text.trim().split(' ');
+  const parts = text.split(' ');
 
   // ======================
-  // DEPOSIT FLOW (FIXED)
+  // DEPOSIT FLOW
   // ======================
-  if (parts.length === 3) {
+  if (parts.length === 3 && isNaN(parts[0]) === false) {
     const [trx_id, amount, sender] = parts;
-
-    // better validation
-    if (!trx_id || !amount || !sender) return;
 
     try {
       const res = await axios.post(`${API}/db/transaction`, {
@@ -131,6 +111,7 @@ bot.on('message', async (msg) => {
       }
 
       return bot.sendMessage(chatId, "⏳ Deposit received. Processing...");
+
     } catch (err) {
       return bot.sendMessage(chatId, "❌ Server error");
     }
@@ -151,6 +132,7 @@ bot.on('message', async (msg) => {
       });
 
       return bot.sendMessage(chatId, "💸 Withdraw request submitted");
+
     } catch (err) {
       return bot.sendMessage(chatId, "❌ Withdraw failed");
     }
