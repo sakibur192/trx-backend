@@ -52,6 +52,9 @@ const sendGroupMenu = async () => {
       }
     });
 
+
+        await bot.pinChatMessage(GROUP_ID, msg.message_id);
+
     console.log("📌 Group menu sent");
   } catch (err) {
     console.log("Menu error:", err.message);
