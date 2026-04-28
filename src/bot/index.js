@@ -37,7 +37,7 @@ const sendMainMenu = async (chatId) => {
 // ======================
 const sendGroupMenu = async () => {
   try {
-    await bot.sendMessage(GROUP_ID, "💰 *System Menu*", {
+    const msg = await bot.sendMessage(GROUP_ID, "💰 *Main Menu*\nAlways use buttons below:", {
       parse_mode: "Markdown",
       reply_markup: {
         inline_keyboard: [
@@ -52,10 +52,10 @@ const sendGroupMenu = async () => {
       }
     });
 
+    // PIN MESSAGE (THIS IS THE KEY)
+    await bot.pinChatMessage(GROUP_ID, msg.message_id);
 
-        await bot.pinChatMessage(GROUP_ID, msg.message_id);
-
-    console.log("📌 Group menu sent");
+    console.log("📌 Menu sent and pinned");
   } catch (err) {
     console.log("Menu error:", err.message);
   }
