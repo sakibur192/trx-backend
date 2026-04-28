@@ -4,9 +4,9 @@ const axios = require('axios');
 // ======================
 // CONFIG
 // ======================
-const TOKEN = "YOUR_BOT_TOKEN"; // replace this
-const API = "http://localhost:4000"; // backend API
-const GROUP_ID = -100xxxxxxxxxx; // your group id
+const TOKEN = "8595998350:AAGMJ4chtTaCCN9aOKll7LCZuYfoi7yzhxo"; // replace this
+const API = "http://187.127.145.228:4000"; // backend API
+const GROUP_ID = -1003923871636; // your group id
 
 const bot = new TelegramBot(TOKEN, { polling: true });
 
