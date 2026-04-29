@@ -106,30 +106,45 @@ async function startVerificationRetry(chatId, data) {
 // ======================
 // MESSAGE HANDLER (Commands & Logic)
 // ======================
+// ... (Your existing Config and DB Init code)
+
+// ======================
+// UNIFIED MESSAGE HANDLER
+// ======================
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
 
+    // 1. Check if text exists
     if (!text) return;
 
-    // CRITICAL: Check for /start first to reset any process
-    if (text === '/start') {
-        delete userState[chatId]; // Wipes any ongoing manual steps
-        return bot.sendMessage(chatId, `💰 *TRX WALLET APP*`, {
+    // 2. FORCE START LOGIC
+    if (text.toLowerCase() === '/start') {
+        console.log(`[LOG] Start command triggered by ${chatId}`); // Check PM2 logs for this!
+        
+        // Wipe state to ensure no one is "stuck"
+        delete userState[chatId]; 
+
+        const menuOptions = {
             parse_mode: "Markdown",
             reply_markup: { 
-                inline_keyboard: [[{ text: "💰 Deposit", callback_data: "dep_menu" }, { text: "💸 Withdraw", callback_data: "withdraw" }]] 
+                inline_keyboard: [
+                    [{ text: "💰 Deposit", callback_data: "dep_menu" }, { text: "💸 Withdraw", callback_data: "withdraw" }]
+                ] 
             }
-        });
+        };
+
+        return bot.sendMessage(chatId, `💰 *TRX WALLET APP*\nWelcome! Choose an option below:`, menuOptions)
+            .catch(err => console.error("Error sending start message:", err));
     }
 
-    // Ignore other commands
+    // 3. Ignore all other commands starting with /
     if (text.startsWith('/')) return;
 
+    // 4. Handle State Logic (Manual Steps)
     const state = userState[chatId];
     if (!state) return;
 
-    // Step-by-Step Manual Logic
     if (state.step === 'M_TRX') {
         userState[chatId] = { ...state, step: 'M_AMT', trx: text };
         bot.sendMessage(chatId, "Step 2: Enter **Amount**:");
@@ -154,6 +169,7 @@ bot.on('message', async (msg) => {
     }
 });
 
+// ... (Rest of your Callback and Photo logic)
 // ======================
 // CALLBACKS
 // ======================
