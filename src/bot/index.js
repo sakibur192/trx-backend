@@ -1,6 +1,6 @@
 const TelegramBot = require('node-telegram-bot-api');
 const Tesseract = require('tesseract.js');
-const db = require('./db'); // Importing your specific Pool connection
+const db = require('../db'); // Importing your specific Pool connection
 
 // ======================
 // CONFIG
@@ -110,8 +110,7 @@ bot.onText(/\/start/, (msg) => {
         parse_mode: "Markdown",
         reply_markup: {
             inline_keyboard: [
-                [{ text: "💰 Deposit", callback_data: "dep_menu" }, { text: "💸 Withdraw", callback_data: "withdraw" }],
-                [{ text: "📊 History", callback_data: "history" }, { text: "🆘 Support", callback_data: "support" }]
+                [{ text: "💰 Deposit", callback_data: "dep_menu" }, { text: "💸 Withdraw", callback_data: "withdraw" }], [{ text: "🆘 Support", callback_data: "support" }]
             ]
         }
     });
