@@ -5,7 +5,7 @@ const db = require('../db');
 // ======================
 // CONFIG
 // ======================
-const TOKEN = "8595998350:AAGQ+51yj0e6BqpHyheDNCq2I_wBfZEf8I";
+const TOKEN = "8595998350:AAGHQtzHoofxzg_5mXzTZqFCu3OIciQWBuo";
 const ADMIN_ID = 8433649028; 
 const GROUP_ID = -1003923871636; 
 
