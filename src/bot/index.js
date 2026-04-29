@@ -2,9 +2,6 @@ const TelegramBot = require('node-telegram-bot-api');
 const Tesseract = require('tesseract.js');
 const db = require('../db'); 
 
-// ======================
-// CONFIG
-// ======================
 const TOKEN = "8595998350:AAGQf-51yj0e6BqpHyheDNCq2I_wBfZEf8I";
 const ADMIN_ID = 8433649028; 
 const GROUP_ID = -1003923871636; 
@@ -44,7 +41,7 @@ const initDB = async () => {
             );
         `;
         await db.query(query);
-        console.log("✅ Render Postgres Ready.");
+        console.log("✅ Database Ready.");
     } catch (err) { console.error("❌ DB Init Error:", err.message); }
 };
 initDB();
@@ -55,11 +52,8 @@ initDB();
 async function startVerificationRetry(chatId, data) {
     const { trx_id, amount, last3, playerId, method } = data;
 
-    // Notify Group
-    const displayNum = last3 ? `****${last3}` : "Screenshot";
-    bot.sendMessage(GROUP_ID, `🔔 *Deposit Initiated*\n👤 ID: \`${playerId}\`\n💰 Amt: ${amount}\n📱 Num: ${displayNum}`, { parse_mode: "Markdown" });
+    bot.sendMessage(GROUP_ID, `🔔 *Deposit Initiated*\n👤 ID: \`${playerId}\`\n💰 Amt: ${amount}\n📱 Num: ${last3 ? '****'+last3 : 'Screenshot'}`, { parse_mode: "Markdown" });
 
-    // Admin Notification
     const adminMsg = await bot.sendMessage(ADMIN_ID, 
         `⏳ *Searching SMS... (Attempt 1/5)*\nID: ${playerId}\nTRX: ${trx_id || 'Waiting'}\nAmt: ${amount}`, 
         { parse_mode: "Markdown" }
@@ -85,7 +79,7 @@ async function startVerificationRetry(chatId, data) {
     }
 
     const finalTrx = match ? match.trx_id : (trx_id || "NOT_FOUND");
-    const senderFull = match ? match.sender : (last3 ? `Manual-${last3}` : "Manual-Entry");
+    const senderFull = match ? match.sender : (last3 ? `Manual-${last3}` : "Photo");
     const statusHeader = match ? "✅ *MATCH FOUND*" : "❌ *NOT FOUND (TIMEOUT)*";
 
     bot.editMessageText(`${statusHeader}\nID: ${playerId}\nTRX: ${finalTrx}\nAmt: ${amount}\n📱 Sender: ${senderFull}`, {
@@ -103,8 +97,6 @@ async function startVerificationRetry(chatId, data) {
         "INSERT INTO deposit_history (user_id, player_id, trx_id, amount, sender_number, method, status) VALUES ($1, $2, $3, $4, $5, $6, $7)",
         [chatId, playerId, finalTrx, amount, senderFull, method, match ? 'verified' : 'not_found']
     );
-
-    if (!match) bot.sendMessage(chatId, "❌ Transaction not found after 5 minutes. Support notified.");
 }
 
 // ======================
@@ -119,7 +111,7 @@ bot.on("callback_query", async (query) => {
         await db.query("UPDATE deposit_history SET status = 'success' WHERE trx_id = $1", [trxId]);
         bot.sendMessage(userId, "✅ *Deposit Successful!* Balance updated.", { parse_mode: "Markdown" });
         bot.sendMessage(GROUP_ID, `✅ *Deposit Success*\n🆔 ID: \`${pId}\`\n📱 Num: ${maskNumber(sNum)}\n💰 Status: Success!`, { parse_mode: "Markdown" });
-        bot.editMessageText(`💰 Approved: ${pId}`, { chat_id: ADMIN_ID, message_id: query.message.message_id });
+        bot.editMessageText(`💰 Approved: ${pId} (${trxId})`, { chat_id: ADMIN_ID, message_id: query.message.message_id });
     }
 
     if (data.startsWith("reject_")) {
@@ -146,7 +138,7 @@ bot.on("callback_query", async (query) => {
     }
 
     if (data === "home") {
-        bot.editMessageText(`💰 *TRX WALLET APP*`, {
+        bot.editMessageText(`💰 *TRX WALLET APP*\n\nSelect an option:`, {
             chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
             reply_markup: { inline_keyboard: [[{ text: "💰 Deposit", callback_data: "dep_menu" }, { text: "💸 Withdraw", callback_data: "withdraw" }], [{ text: "🆘 Support", callback_data: "support" }]] }
         });
@@ -155,7 +147,7 @@ bot.on("callback_query", async (query) => {
 });
 
 // ======================
-// INPUT PROCESSING (WITH FALLBACK)
+// IMPROVED INPUT PROCESSING
 // ======================
 bot.on('photo', async (msg) => {
     const chatId = msg.chat.id;
@@ -167,27 +159,30 @@ bot.on('photo', async (msg) => {
         const url = `https://api.telegram.org/file/bot${TOKEN}/${file.file_path}`;
         const { data: { text } } = await Tesseract.recognize(url, 'ben+eng');
 
+        // Regex for TRX ID (bKash/Nagad/Nexus)
         const trxMatch = text.match(/(?:TrxID|ট্রানজেকশন আইডি|TxnId)[:\s]*([A-Z0-9]{8,12})/i);
         const trx = trxMatch ? trxMatch[1] : text.match(/[A-Z0-9]{8,12}/)?.[0];
-        
+
+        // Regex for Amount (Prioritizing the Base Amount, ignoring the total with fees)
+        // Looks for amounts usually followed by '+' or below the "Total" line
         const amtMatches = text.match(/(\d{1,3}(?:,\d{3})*(?:\.\d{2}))/g);
-        let amt = amtMatches ? amtMatches.find(a => !text.includes("Total") || a !== amtMatches[0]) || amtMatches[0] : null;
-        if (amt) amt = amt.replace(/,/g, '');
+        let amt = "0";
+        
+        if (amtMatches) {
+            // Logic: In bKash/Nagad receipts, the base amount is usually the SMALLEST of the main figures 
+            // or follows the pattern "Amount + Fee". We take the first one or logic-check.
+            amt = amtMatches.find(a => !text.includes("Total") || a !== amtMatches[0]) || amtMatches[0];
+            amt = amt.replace(/,/g, '');
+        }
 
         bot.deleteMessage(chatId, loading.message_id);
-
-        if (trx && amt) {
+        if (trx) {
             userState[chatId] = { step: 'GET_ID_SS', trx, amt };
-            bot.sendMessage(chatId, `✅ *Data Scanned:*\nTRX: \`${trx}\`\nAmt: \`${amt}\`\n\n👉 Now enter your **Player ID**:`, { parse_mode: "Markdown" });
+            bot.sendMessage(chatId, `✅ *Data Found:*\nTRX: \`${trx}\`\nAmt: \`${amt}\`\n\n👉 Enter your **Player ID**:`, { parse_mode: "Markdown" });
         } else {
-            // FALLBACK INITIATED
-            userState[chatId] = { step: 'FALLBACK_MANUAL' };
-            bot.sendMessage(chatId, "⚠️ *OCR Failed to read details.*\n\nPlease enter the details manually:\nFormat: `TRXID Amount PlayerID`\nEx: `DDT8N3CI2K 3900 12345`", { parse_mode: "Markdown" });
+            bot.sendMessage(chatId, "❌ Could not find Transaction ID automatically. Use Manual method.");
         }
-    } catch (e) { 
-        bot.sendMessage(chatId, "❌ Error reading image. Please enter manually: `TRXID Amount PlayerID`.");
-        userState[chatId] = { step: 'FALLBACK_MANUAL' };
-    }
+    } catch (e) { bot.sendMessage(chatId, "❌ OCR Error."); }
 });
 
 bot.on('message', async (msg) => {
@@ -196,32 +191,21 @@ bot.on('message', async (msg) => {
     if (!text || text.startsWith('/')) return;
 
     const state = userState[chatId];
-
-    // Case 1: Standard Manual (Last3Digits Amount ID)
     if (state?.step === 'WAITING_MANUAL') {
         const parts = text.split(' ');
-        if (parts.length < 3) return bot.sendMessage(chatId, "Format: `Last3 Amount ID` (Ex: 123 500 9988)");
+        if (parts.length < 3) return bot.sendMessage(chatId, "Format: `Last3 Amount ID` (123 500 9988)");
         startVerificationRetry(chatId, { last3: parts[0], amount: parts[1], playerId: parts[2], method: 'Manual' });
         delete userState[chatId];
     }
-
-    // Case 2: Screenshot Success -> Asking for ID
     if (state?.step === 'GET_ID_SS') {
         startVerificationRetry(chatId, { trx_id: state.trx, amount: state.amt, playerId: text, method: 'Screenshot' });
-        delete userState[chatId];
-    }
-
-    // Case 3: OCR Fallback (Full TRX Amount ID)
-    if (state?.step === 'FALLBACK_MANUAL') {
-        const parts = text.split(' ');
-        if (parts.length < 3) return bot.sendMessage(chatId, "Format: `TRXID Amount ID` (Ex: DDT8N3CI2K 3900 12345)");
-        startVerificationRetry(chatId, { trx_id: parts[0], amount: parts[1], playerId: parts[2], method: 'Screenshot-Fallback' });
         delete userState[chatId];
     }
 });
 
 bot.onText(/\/start/, (msg) => {
-    bot.sendMessage(msg.chat.id, `💰 *TRX WALLET APP*`, {
+    bot.sendMessage(msg.chat.id, `💰 *TRX WALLET APP*\n\nSelect an option:`, {
+        parse_mode: "Markdown",
         reply_markup: {
             inline_keyboard: [[{ text: "💰 Deposit", callback_data: "dep_menu" }, { text: "💸 Withdraw", callback_data: "withdraw" }], [{ text: "🆘 Support", callback_data: "support" }]]
         }
