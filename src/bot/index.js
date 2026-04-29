@@ -55,7 +55,6 @@ initDB();
 async function startVerificationRetry(chatId, data) {
     const { trx_id, amount, playerId, senderNum, method } = data;
 
-    // Notify Group (Masked)
     bot.sendMessage(GROUP_ID, `🔔 *Deposit Initiated*\n👤 ID: \`${playerId}\`\n💰 Amt: ${amount}\n📱 Num: ${maskNumber(senderNum)}`, { parse_mode: "Markdown" });
 
     const adminMsg = await bot.sendMessage(ADMIN_ID, 
@@ -66,11 +65,12 @@ async function startVerificationRetry(chatId, data) {
     let match = null;
     for (let i = 1; i <= 3; i++) {
         if (i > 1) {
-            bot.editMessageText(`⏳ *Searching SMS... (Attempt ${i}/3)*\nID: ${playerId}\nTRX: ${trx_id}`, 
-            { chat_id: ADMIN_ID, message_id: adminMsg.message_id });
+            try {
+                await bot.editMessageText(`⏳ *Searching SMS... (Attempt ${i}/3)*\nID: ${playerId}\nTRX: ${trx_id}`, 
+                { chat_id: ADMIN_ID, message_id: adminMsg.message_id });
+            } catch (e) { /* ignore edit errors */ }
         }
 
-        // Strict match on TRX and Amount
         const res = await db.query(
             "SELECT * FROM sms_data WHERE trx_id = $1 AND amount = $2 LIMIT 1",
             [trx_id, amount]
@@ -87,9 +87,8 @@ async function startVerificationRetry(chatId, data) {
     const finalSender = match ? match.sender : senderNum;
     const statusHeader = match ? "✅ *MATCH FOUND*" : "❌ *NOT FOUND (TIMEOUT)*";
 
-    bot.editMessageText(`${statusHeader}\nID: ${playerId}\nTRX: ${finalTrx}\nAmt: ${amount}\n📱 Sender: ${finalSender}`, {
-        chat_id: ADMIN_ID,
-        message_id: adminMsg.message_id,
+    bot.sendMessage(ADMIN_ID, `${statusHeader}\nID: ${playerId}\nTRX: ${finalTrx}\nAmt: ${amount}\n📱 Sender: ${finalSender}`, {
+        parse_mode: "Markdown",
         reply_markup: {
             inline_keyboard: [
                 [{ text: "✅ SEND..OK", callback_data: `approve_${chatId}_${finalTrx}_${playerId}_${finalSender}` }],
@@ -103,6 +102,20 @@ async function startVerificationRetry(chatId, data) {
         [chatId, playerId, finalTrx, amount, finalSender, method, match ? 'verified' : 'not_found']
     );
 }
+
+// ======================
+// COMMANDS
+// ======================
+bot.onText(/\/start/, (msg) => {
+    const chatId = msg.chat.id;
+    delete userState[chatId]; // Clear any stuck state
+    bot.sendMessage(chatId, `💰 *TRX WALLET APP*`, {
+        parse_mode: "Markdown",
+        reply_markup: { 
+            inline_keyboard: [[{ text: "💰 Deposit", callback_data: "dep_menu" }, { text: "💸 Withdraw", callback_data: "withdraw" }]] 
+        }
+    });
+});
 
 // ======================
 // CALLBACKS
@@ -121,31 +134,30 @@ bot.on("callback_query", async (query) => {
         bot.sendMessage(chatId, "⌨️ *Manual Entry*\nStep 1: Enter **Transaction ID**:");
     }
 
+    if (data === "dep_menu") {
+        bot.sendMessage(chatId, "📥 *Choose Method:*", {
+            parse_mode: "Markdown",
+            reply_markup: { inline_keyboard: [[{ text: "📸 Screenshot", callback_data: "dep_ss" }, { text: "⌨️ Manual", callback_data: "dep_manual" }]] }
+        });
+    }
+
     if (data.startsWith("approve_")) {
         const [_, userId, trxId, pId, sNum] = data.split("_");
         await db.query("UPDATE deposit_history SET status = 'success' WHERE trx_id = $1", [trxId]);
         bot.sendMessage(userId, "✅ *Deposit Successful!* Balance updated.", { parse_mode: "Markdown" });
         bot.sendMessage(GROUP_ID, `✅ *Deposit Success*\n🆔 ID: \`${pId}\`\n💰 Status: Success!`, { parse_mode: "Markdown" });
-        bot.editMessageText(`💰 Approved: ${pId}`, { chat_id: ADMIN_ID, message_id: query.message.message_id });
     }
 
     if (data.startsWith("reject_")) {
         const [_, userId, pId] = data.split("_");
         bot.sendMessage(userId, "❌ *Deposit Rejected.* Contact support.");
-        bot.editMessageText(`❌ Rejected: ${pId}`, { chat_id: ADMIN_ID, message_id: query.message.message_id });
     }
 
-    if (data === "dep_menu") {
-        bot.editMessageText("📥 *Choose Method:*", {
-            chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
-            reply_markup: { inline_keyboard: [[{ text: "📸 Screenshot", callback_data: "dep_ss" }, { text: "⌨️ Manual", callback_data: "dep_manual" }]] }
-        });
-    }
     bot.answerCallbackQuery(query.id);
 });
 
 // ======================
-// MESSAGE & OCR PROCESSING
+// PHOTO & MESSAGE LOGIC
 // ======================
 bot.on('photo', async (msg) => {
     const chatId = msg.chat.id;
@@ -161,14 +173,12 @@ bot.on('photo', async (msg) => {
         const amtMatches = text.match(/(\d{1,3}(?:,\d{3})*(?:\.\d{2}))/g);
         let amt = amtMatches ? (amtMatches.find(a => !text.includes("Total") || a !== amtMatches[0]) || amtMatches[0]).replace(/,/g, '') : null;
 
-        bot.deleteMessage(chatId, loading.message_id);
-
         if (trx && amt) {
             userState[chatId] = { step: 'GET_ID_SS', trx, amt };
             bot.sendMessage(chatId, `✅ *Scanned:* TRX: \`${trx}\`, Amt: \`${amt}\`\n👉 Enter **Player ID**:`, { parse_mode: "Markdown" });
         } else {
-            userState[chatId] = { step: 'M_TRX' }; // Automatic Fallback to Step-by-Step
-            bot.sendMessage(chatId, "⚠️ OCR Failed. Let's do it manually.\n\nStep 1: Enter **Transaction ID**:");
+            userState[chatId] = { step: 'M_TRX' };
+            bot.sendMessage(chatId, "⚠️ OCR Failed. Enter **Transaction ID** manually:");
         }
     } catch (e) { 
         userState[chatId] = { step: 'M_TRX' };
@@ -179,15 +189,16 @@ bot.on('photo', async (msg) => {
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
+
+    // Ignore commands so they don't break the state logic
     if (!text || text.startsWith('/')) return;
 
     const state = userState[chatId];
     if (!state) return;
 
-    // STEP-BY-STEP MANUAL FLOW
     if (state.step === 'M_TRX') {
         userState[chatId] = { ...state, step: 'M_AMT', trx: text };
-        bot.sendMessage(chatId, "Step 2: Enter **Amount** (Ex: 3900):");
+        bot.sendMessage(chatId, "Step 2: Enter **Amount**:");
     } 
     else if (state.step === 'M_AMT') {
         userState[chatId] = { ...state, step: 'M_ID', amt: text };
@@ -200,18 +211,11 @@ bot.on('message', async (msg) => {
     else if (state.step === 'M_NUM') {
         const finalData = { trx_id: state.trx, amount: state.amt, playerId: state.pId, senderNum: text, method: 'Manual' };
         delete userState[chatId];
-        bot.sendMessage(chatId, "⏳ Verifying with database... please wait.");
+        bot.sendMessage(chatId, "⏳ Verifying... please wait.");
         startVerificationRetry(chatId, finalData);
     }
-    // SCREENSHOT SUCCESS FLOW
     else if (state.step === 'GET_ID_SS') {
         startVerificationRetry(chatId, { trx_id: state.trx, amount: state.amt, playerId: text, senderNum: "From Photo", method: 'Screenshot' });
         delete userState[chatId];
     }
-});
-
-bot.onText(/\/start/, (msg) => {
-    bot.sendMessage(msg.chat.id, `💰 *TRX WALLET APP*`, {
-        reply_markup: { inline_keyboard: [[{ text: "💰 Deposit", callback_data: "dep_menu" }, { text: "💸 Withdraw", callback_data: "withdraw" }]] }
-    });
 });
