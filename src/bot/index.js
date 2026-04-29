@@ -64,13 +64,6 @@ async function startVerificationRetry(chatId, data) {
 
     let match = null;
     for (let i = 1; i <= 3; i++) {
-        if (i > 1) {
-            try {
-                await bot.editMessageText(`⏳ *Searching SMS... (Attempt ${i}/3)*\nID: ${playerId}\nTRX: ${trx_id}`, 
-                { chat_id: ADMIN_ID, message_id: adminMsg.message_id });
-            } catch (e) { /* ignore edit errors */ }
-        }
-
         const res = await db.query(
             "SELECT * FROM sms_data WHERE trx_id = $1 AND amount = $2 LIMIT 1",
             [trx_id, amount]
@@ -80,7 +73,14 @@ async function startVerificationRetry(chatId, data) {
             match = res.rows[0];
             break;
         }
-        if (i < 3) await sleep(60000); 
+
+        if (i < 3) {
+            await sleep(60000);
+            try {
+                await bot.editMessageText(`⏳ *Searching SMS... (Attempt ${i+1}/3)*\nID: ${playerId}\nTRX: ${trx_id}`, 
+                { chat_id: ADMIN_ID, message_id: adminMsg.message_id });
+            } catch (e) {}
+        }
     }
 
     const finalTrx = match ? match.trx_id : trx_id;
@@ -104,98 +104,32 @@ async function startVerificationRetry(chatId, data) {
 }
 
 // ======================
-// COMMANDS
+// MESSAGE HANDLER (Commands & Logic)
 // ======================
-bot.onText(/\/start/, (msg) => {
-    const chatId = msg.chat.id;
-    delete userState[chatId]; // Clear any stuck state
-    bot.sendMessage(chatId, `💰 *TRX WALLET APP*`, {
-        parse_mode: "Markdown",
-        reply_markup: { 
-            inline_keyboard: [[{ text: "💰 Deposit", callback_data: "dep_menu" }, { text: "💸 Withdraw", callback_data: "withdraw" }]] 
-        }
-    });
-});
-
-// ======================
-// CALLBACKS
-// ======================
-bot.on("callback_query", async (query) => {
-    const chatId = query.message.chat.id;
-    const data = query.data;
-
-    if (data === "dep_ss") {
-        userState[chatId] = { step: 'WAITING_PHOTO' };
-        bot.sendMessage(chatId, "📸 *Send your payment screenshot now:*");
-    }
-
-    if (data === "dep_manual") {
-        userState[chatId] = { step: 'M_TRX' };
-        bot.sendMessage(chatId, "⌨️ *Manual Entry*\nStep 1: Enter **Transaction ID**:");
-    }
-
-    if (data === "dep_menu") {
-        bot.sendMessage(chatId, "📥 *Choose Method:*", {
-            parse_mode: "Markdown",
-            reply_markup: { inline_keyboard: [[{ text: "📸 Screenshot", callback_data: "dep_ss" }, { text: "⌨️ Manual", callback_data: "dep_manual" }]] }
-        });
-    }
-
-    if (data.startsWith("approve_")) {
-        const [_, userId, trxId, pId, sNum] = data.split("_");
-        await db.query("UPDATE deposit_history SET status = 'success' WHERE trx_id = $1", [trxId]);
-        bot.sendMessage(userId, "✅ *Deposit Successful!* Balance updated.", { parse_mode: "Markdown" });
-        bot.sendMessage(GROUP_ID, `✅ *Deposit Success*\n🆔 ID: \`${pId}\`\n💰 Status: Success!`, { parse_mode: "Markdown" });
-    }
-
-    if (data.startsWith("reject_")) {
-        const [_, userId, pId] = data.split("_");
-        bot.sendMessage(userId, "❌ *Deposit Rejected.* Contact support.");
-    }
-
-    bot.answerCallbackQuery(query.id);
-});
-
-// ======================
-// PHOTO & MESSAGE LOGIC
-// ======================
-bot.on('photo', async (msg) => {
-    const chatId = msg.chat.id;
-    if (userState[chatId]?.step !== 'WAITING_PHOTO') return;
-
-    const loading = await bot.sendMessage(chatId, "⏳ *Reading Image...*");
-    try {
-        const file = await bot.getFile(msg.photo[msg.photo.length - 1].file_id);
-        const url = `https://api.telegram.org/file/bot${TOKEN}/${file.file_path}`;
-        const { data: { text } } = await Tesseract.recognize(url, 'ben+eng');
-
-        const trx = text.match(/[A-Z0-9]{8,12}/)?.[0];
-        const amtMatches = text.match(/(\d{1,3}(?:,\d{3})*(?:\.\d{2}))/g);
-        let amt = amtMatches ? (amtMatches.find(a => !text.includes("Total") || a !== amtMatches[0]) || amtMatches[0]).replace(/,/g, '') : null;
-
-        if (trx && amt) {
-            userState[chatId] = { step: 'GET_ID_SS', trx, amt };
-            bot.sendMessage(chatId, `✅ *Scanned:* TRX: \`${trx}\`, Amt: \`${amt}\`\n👉 Enter **Player ID**:`, { parse_mode: "Markdown" });
-        } else {
-            userState[chatId] = { step: 'M_TRX' };
-            bot.sendMessage(chatId, "⚠️ OCR Failed. Enter **Transaction ID** manually:");
-        }
-    } catch (e) { 
-        userState[chatId] = { step: 'M_TRX' };
-        bot.sendMessage(chatId, "❌ Error. Enter **Transaction ID** manually:");
-    }
-});
-
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
 
-    // Ignore commands so they don't break the state logic
-    if (!text || text.startsWith('/')) return;
+    if (!text) return;
+
+    // CRITICAL: Check for /start first to reset any process
+    if (text === '/start') {
+        delete userState[chatId]; // Wipes any ongoing manual steps
+        return bot.sendMessage(chatId, `💰 *TRX WALLET APP*`, {
+            parse_mode: "Markdown",
+            reply_markup: { 
+                inline_keyboard: [[{ text: "💰 Deposit", callback_data: "dep_menu" }, { text: "💸 Withdraw", callback_data: "withdraw" }]] 
+            }
+        });
+    }
+
+    // Ignore other commands
+    if (text.startsWith('/')) return;
 
     const state = userState[chatId];
     if (!state) return;
 
+    // Step-by-Step Manual Logic
     if (state.step === 'M_TRX') {
         userState[chatId] = { ...state, step: 'M_AMT', trx: text };
         bot.sendMessage(chatId, "Step 2: Enter **Amount**:");
@@ -217,5 +151,68 @@ bot.on('message', async (msg) => {
     else if (state.step === 'GET_ID_SS') {
         startVerificationRetry(chatId, { trx_id: state.trx, amount: state.amt, playerId: text, senderNum: "From Photo", method: 'Screenshot' });
         delete userState[chatId];
+    }
+});
+
+// ======================
+// CALLBACKS
+// ======================
+bot.on("callback_query", async (query) => {
+    const chatId = query.message.chat.id;
+    const data = query.data;
+
+    if (data === "dep_menu") {
+        bot.sendMessage(chatId, "📥 *Choose Method:*", {
+            parse_mode: "Markdown",
+            reply_markup: { inline_keyboard: [[{ text: "📸 Screenshot", callback_data: "dep_ss" }, { text: "⌨️ Manual", callback_data: "dep_manual" }]] }
+        });
+    } else if (data === "dep_ss") {
+        userState[chatId] = { step: 'WAITING_PHOTO' };
+        bot.sendMessage(chatId, "📸 *Send your payment screenshot now:*");
+    } else if (data === "dep_manual") {
+        userState[chatId] = { step: 'M_TRX' };
+        bot.sendMessage(chatId, "⌨️ *Manual Entry*\nStep 1: Enter **Transaction ID**:");
+    } else if (data.startsWith("approve_")) {
+        const [_, userId, trxId, pId, sNum] = data.split("_");
+        await db.query("UPDATE deposit_history SET status = 'success' WHERE trx_id = $1", [trxId]);
+        bot.sendMessage(userId, "✅ *Deposit Successful!* Balance updated.", { parse_mode: "Markdown" });
+        bot.sendMessage(GROUP_ID, `✅ *Deposit Success*\n🆔 ID: \`${pId}\`\n💰 Status: Success!`, { parse_mode: "Markdown" });
+    } else if (data.startsWith("reject_")) {
+        const [_, userId, pId] = data.split("_");
+        bot.sendMessage(userId, "❌ *Deposit Rejected.* Contact support.");
+    }
+
+    bot.answerCallbackQuery(query.id);
+});
+
+// ======================
+// PHOTO HANDLING
+// ======================
+bot.on('photo', async (msg) => {
+    const chatId = msg.chat.id;
+    if (userState[chatId]?.step !== 'WAITING_PHOTO') return;
+
+    const loading = await bot.sendMessage(chatId, "⏳ *Reading Image...*");
+    try {
+        const file = await bot.getFile(msg.photo[msg.photo.length - 1].file_id);
+        const url = `https://api.telegram.org/file/bot${TOKEN}/${file.file_path}`;
+        const { data: { text } } = await Tesseract.recognize(url, 'ben+eng');
+
+        const trx = text.match(/[A-Z0-9]{8,12}/)?.[0];
+        const amtMatches = text.match(/(\d{1,3}(?:,\d{3})*(?:\.\d{2}))/g);
+        let amt = amtMatches ? (amtMatches.find(a => !text.includes("Total") || a !== amtMatches[0]) || amtMatches[0]).replace(/,/g, '') : null;
+
+        bot.deleteMessage(chatId, loading.message_id);
+
+        if (trx && amt) {
+            userState[chatId] = { step: 'GET_ID_SS', trx, amt };
+            bot.sendMessage(chatId, `✅ *Scanned:* TRX: \`${trx}\`, Amt: \`${amt}\`\n👉 Enter **Player ID**:`, { parse_mode: "Markdown" });
+        } else {
+            userState[chatId] = { step: 'M_TRX' };
+            bot.sendMessage(chatId, "⚠️ OCR Failed. Enter **Transaction ID** manually:");
+        }
+    } catch (e) { 
+        userState[chatId] = { step: 'M_TRX' };
+        bot.sendMessage(chatId, "❌ OCR Error. Enter **Transaction ID** manually:");
     }
 });
