@@ -55,12 +55,23 @@ initDB();
 async function startVerificationRetry(chatId, data) {
     const { trx_id, amount, playerId, senderNum, method } = data;
 
-    bot.sendMessage(GROUP_ID, `🔔 *Deposit Initiated*\n👤 ID: \`${playerId}\`\n💰 Amt: ${amount}\n📱 Num: ${maskNumber(senderNum)}`, { parse_mode: "Markdown" });
-
-    const adminMsg = await bot.sendMessage(ADMIN_ID, 
-        `⏳ *Searching SMS... (Attempt 1/3)*\nID: ${playerId}\nTRX: ${trx_id}\nAmt: ${amount}\nSender: ${senderNum}`, 
-        { parse_mode: "Markdown" }
+    // 1. DUPLICATE CHECK
+    const dupCheck = await db.query(
+        "SELECT * FROM deposit_history WHERE trx_id = $1 AND (status = 'success' OR status = 'pending')",
+        [trx_id]
     );
+
+    if (dupCheck.rows.length > 0) {
+        const dupMsg = await bot.sendMessage(chatId, "⚠️ *Duplicate Transaction!*\nThis TRX ID has already been submitted or processed.");
+        bot.sendMessage(GROUP_ID, `🚫 *Duplicate Blocked*\nID: \`${playerId}\`\nTRX: \`${trx_id}\``, { parse_mode: "Markdown" });
+        
+        // Auto-delete user warning after 1 minute
+        setTimeout(() => bot.deleteMessage(chatId, dupMsg.message_id).catch(() => {}), 60000);
+        return;
+    }
+
+    // 2. INITIAL NOTIFICATION
+    bot.sendMessage(GROUP_ID, `🔔 *Deposit Initiated*\n👤 ID: \`${playerId}\`\n💰 Amt: ${amount}\n📱 Num: ${maskNumber(senderNum)}`, { parse_mode: "Markdown" });
 
     let match = null;
     for (let i = 1; i <= 3; i++) {
@@ -73,34 +84,44 @@ async function startVerificationRetry(chatId, data) {
             match = res.rows[0];
             break;
         }
-
-        if (i < 3) {
-            await sleep(60000);
-            try {
-                await bot.editMessageText(`⏳ *Searching SMS... (Attempt ${i+1}/3)*\nID: ${playerId}\nTRX: ${trx_id}`, 
-                { chat_id: ADMIN_ID, message_id: adminMsg.message_id });
-            } catch (e) {}
-        }
+        if (i < 3) await sleep(60000); 
     }
 
-    const finalTrx = match ? match.trx_id : trx_id;
-    const finalSender = match ? match.sender : senderNum;
-    const statusHeader = match ? "✅ *MATCH FOUND*" : "❌ *NOT FOUND (TIMEOUT)*";
+    // 3. RESULT HANDLING
+    if (!match) {
+        // NOT FOUND CASE
+        const nfMsg = await bot.sendMessage(chatId, "❌ *Transaction Not Found.*\nWe couldn't verify this TRX. Please check details or try again later.");
+        bot.sendMessage(GROUP_ID, `❌ *Verification Failed*\nID: \`${playerId}\`\nTRX: \`${trx_id}\` (Not Found)`, { parse_mode: "Markdown" });
+        
+        // Auto-delete after 5 minutes
+        setTimeout(() => bot.deleteMessage(chatId, nfMsg.message_id).catch(() => {}), 300000);
+    } else {
+        // MATCH FOUND - ASK FOR ADMIN APPROVAL
+        await bot.sendMessage(chatId, "⏳ *Payment Verified!*\nPlease wait while the Admin performs the final approval.");
+        bot.sendMessage(GROUP_ID, `✅ *TRX Matched*\nID: \`${playerId}\`\nStatus: Awaiting Admin Approval...`, { parse_mode: "Markdown" });
 
-    bot.sendMessage(ADMIN_ID, `${statusHeader}\nID: ${playerId}\nTRX: ${finalTrx}\nAmt: ${amount}\n📱 Sender: ${finalSender}`, {
-        parse_mode: "Markdown",
-        reply_markup: {
-            inline_keyboard: [
-                [{ text: "✅ SEND..OK", callback_data: `approve_${chatId}_${finalTrx}_${playerId}_${finalSender}` }],
-                [{ text: "❌ REJECT", callback_data: `reject_${chatId}_${playerId}` }]
-            ]
-        }
-    });
+        // SEND TO ADMIN
+        bot.sendMessage(ADMIN_ID, 
+            `💰 *NEW DEPOSIT APPROVAL REQ*\n━━━━━━━━━━━━━━━\n👤 ID: \`${playerId}\`\n💵 Amt: ${amount}\n🔑 TRX: \`${match.trx_id}\`\n📱 Sender: ${match.sender}`, 
+            {
+                parse_mode: "Markdown",
+                reply_markup: {
+                    inline_keyboard: [
+                        [
+                            { text: "✅ DONE", callback_data: `approve_${chatId}_${match.trx_id}_${playerId}` },
+                            { text: "❌ REJECT", callback_data: `reject_${chatId}_${playerId}` }
+                        ]
+                    ]
+                }
+            }
+        );
 
-    await db.query(
-        "INSERT INTO deposit_history (user_id, player_id, trx_id, amount, sender_number, method, status) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-        [chatId, playerId, finalTrx, amount, finalSender, method, match ? 'verified' : 'not_found']
-    );
+        // Record as pending in history
+        await db.query(
+            "INSERT INTO deposit_history (user_id, player_id, trx_id, amount, sender_number, method, status) VALUES ($1, $2, $3, $4, $5, $6, 'pending')",
+            [chatId, playerId, match.trx_id, amount, match.sender, method]
+        );
+    }
 }
 
 // ======================
@@ -196,6 +217,30 @@ bot.on("callback_query", async (query) => {
     } else if (data.startsWith("reject_")) {
         const [_, userId, pId] = data.split("_");
         bot.sendMessage(userId, "❌ *Deposit Rejected.* Contact support.");
+    }
+
+
+
+
+
+if (data.startsWith("approve_")) {
+        const [_, userId, trxId, pId] = data.split("_");
+        
+        await db.query("UPDATE deposit_history SET status = 'success' WHERE trx_id = $1", [trxId]);
+        
+        bot.sendMessage(userId, "✅ *Deposit Successful!*\nYour account has been updated.", { parse_mode: "Markdown" });
+        bot.sendMessage(GROUP_ID, `💎 *Deposit Success*\n🆔 ID: \`${pId}\`\n💰 Status: Completed Successfully!`, { parse_mode: "Markdown" });
+        
+        bot.editMessageText(`✅ Approved: ${pId} (${trxId})`, { chat_id: ADMIN_ID, message_id: query.message.message_id });
+    }
+
+    if (data.startsWith("reject_")) {
+        const [_, userId, pId] = data.split("_");
+        
+        bot.sendMessage(userId, "❌ *Deposit Rejected.*\nYour payment verification was unsuccessful. Contact support.");
+        bot.sendMessage(GROUP_ID, `⚠️ *Deposit Rejected*\n🆔 ID: \`${pId}\`\nStatus: Unsuccessful.`, { parse_mode: "Markdown" });
+        
+        bot.editMessageText(`❌ Rejected: ${pId}`, { chat_id: ADMIN_ID, message_id: query.message.message_id });
     }
 
     bot.answerCallbackQuery(query.id);
