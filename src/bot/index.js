@@ -2,7 +2,10 @@ const TelegramBot = require('node-telegram-bot-api');
 const Tesseract = require('tesseract.js');
 const db = require('../db'); 
 
-const TOKEN = "8595998350:AAGQf-51yj0e6BqpHyheDNCq2I_wBfZEf8I";
+// ======================
+// CONFIG
+// ======================
+const TOKEN = "8595998350:AAGQ+51yj0e6BqpHyheDNCq2I_wBfZEf8I";
 const ADMIN_ID = 8433649028; 
 const GROUP_ID = -1003923871636; 
 
@@ -42,52 +45,54 @@ const initDB = async () => {
         `;
         await db.query(query);
         console.log("✅ Database Ready.");
-    } catch (err) { console.error("❌ DB Init Error:", err.message); }
+    } catch (err) { console.error("❌ DB Error:", err.message); }
 };
 initDB();
 
 // ======================
-// CORE LOGIC: RETRY ENGINE
+// CORE LOGIC: 3-ATTEMPT RETRY
 // ======================
 async function startVerificationRetry(chatId, data) {
-    const { trx_id, amount, last3, playerId, method } = data;
+    const { trx_id, amount, playerId, senderNum, method } = data;
 
-    bot.sendMessage(GROUP_ID, `🔔 *Deposit Initiated*\n👤 ID: \`${playerId}\`\n💰 Amt: ${amount}\n📱 Num: ${last3 ? '****'+last3 : 'Screenshot'}`, { parse_mode: "Markdown" });
+    // Notify Group (Masked)
+    bot.sendMessage(GROUP_ID, `🔔 *Deposit Initiated*\n👤 ID: \`${playerId}\`\n💰 Amt: ${amount}\n📱 Num: ${maskNumber(senderNum)}`, { parse_mode: "Markdown" });
 
     const adminMsg = await bot.sendMessage(ADMIN_ID, 
-        `⏳ *Searching SMS... (Attempt 1/5)*\nID: ${playerId}\nTRX: ${trx_id || 'Waiting'}\nAmt: ${amount}`, 
+        `⏳ *Searching SMS... (Attempt 1/3)*\nID: ${playerId}\nTRX: ${trx_id}\nAmt: ${amount}\nSender: ${senderNum}`, 
         { parse_mode: "Markdown" }
     );
 
     let match = null;
-    for (let i = 1; i <= 5; i++) {
+    for (let i = 1; i <= 3; i++) {
         if (i > 1) {
-            bot.editMessageText(`⏳ *Searching SMS... (Attempt ${i}/5)*\nID: ${playerId}\nTRX: ${trx_id || 'Waiting'}`, 
+            bot.editMessageText(`⏳ *Searching SMS... (Attempt ${i}/3)*\nID: ${playerId}\nTRX: ${trx_id}`, 
             { chat_id: ADMIN_ID, message_id: adminMsg.message_id });
         }
 
+        // Strict match on TRX and Amount
         const res = await db.query(
-            "SELECT * FROM sms_data WHERE (trx_id = $1 OR sender LIKE $2) AND amount = $3 LIMIT 1",
-            [trx_id, `%${last3}`, amount]
+            "SELECT * FROM sms_data WHERE trx_id = $1 AND amount = $2 LIMIT 1",
+            [trx_id, amount]
         );
 
         if (res.rows.length > 0) {
             match = res.rows[0];
             break;
         }
-        if (i < 5) await sleep(60000); 
+        if (i < 3) await sleep(60000); 
     }
 
-    const finalTrx = match ? match.trx_id : (trx_id || "NOT_FOUND");
-    const senderFull = match ? match.sender : (last3 ? `Manual-${last3}` : "Photo");
+    const finalTrx = match ? match.trx_id : trx_id;
+    const finalSender = match ? match.sender : senderNum;
     const statusHeader = match ? "✅ *MATCH FOUND*" : "❌ *NOT FOUND (TIMEOUT)*";
 
-    bot.editMessageText(`${statusHeader}\nID: ${playerId}\nTRX: ${finalTrx}\nAmt: ${amount}\n📱 Sender: ${senderFull}`, {
+    bot.editMessageText(`${statusHeader}\nID: ${playerId}\nTRX: ${finalTrx}\nAmt: ${amount}\n📱 Sender: ${finalSender}`, {
         chat_id: ADMIN_ID,
         message_id: adminMsg.message_id,
         reply_markup: {
             inline_keyboard: [
-                [{ text: "✅ SEND..OK", callback_data: `approve_${chatId}_${finalTrx}_${playerId}_${senderFull}` }],
+                [{ text: "✅ SEND..OK", callback_data: `approve_${chatId}_${finalTrx}_${playerId}_${finalSender}` }],
                 [{ text: "❌ REJECT", callback_data: `reject_${chatId}_${playerId}` }]
             ]
         }
@@ -95,23 +100,33 @@ async function startVerificationRetry(chatId, data) {
 
     await db.query(
         "INSERT INTO deposit_history (user_id, player_id, trx_id, amount, sender_number, method, status) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-        [chatId, playerId, finalTrx, amount, senderFull, method, match ? 'verified' : 'not_found']
+        [chatId, playerId, finalTrx, amount, finalSender, method, match ? 'verified' : 'not_found']
     );
 }
 
 // ======================
-// CALLBACK HANDLERS
+// CALLBACKS
 // ======================
 bot.on("callback_query", async (query) => {
     const chatId = query.message.chat.id;
     const data = query.data;
 
+    if (data === "dep_ss") {
+        userState[chatId] = { step: 'WAITING_PHOTO' };
+        bot.sendMessage(chatId, "📸 *Send your payment screenshot now:*");
+    }
+
+    if (data === "dep_manual") {
+        userState[chatId] = { step: 'M_TRX' };
+        bot.sendMessage(chatId, "⌨️ *Manual Entry*\nStep 1: Enter **Transaction ID**:");
+    }
+
     if (data.startsWith("approve_")) {
         const [_, userId, trxId, pId, sNum] = data.split("_");
         await db.query("UPDATE deposit_history SET status = 'success' WHERE trx_id = $1", [trxId]);
         bot.sendMessage(userId, "✅ *Deposit Successful!* Balance updated.", { parse_mode: "Markdown" });
-        bot.sendMessage(GROUP_ID, `✅ *Deposit Success*\n🆔 ID: \`${pId}\`\n📱 Num: ${maskNumber(sNum)}\n💰 Status: Success!`, { parse_mode: "Markdown" });
-        bot.editMessageText(`💰 Approved: ${pId} (${trxId})`, { chat_id: ADMIN_ID, message_id: query.message.message_id });
+        bot.sendMessage(GROUP_ID, `✅ *Deposit Success*\n🆔 ID: \`${pId}\`\n💰 Status: Success!`, { parse_mode: "Markdown" });
+        bot.editMessageText(`💰 Approved: ${pId}`, { chat_id: ADMIN_ID, message_id: query.message.message_id });
     }
 
     if (data.startsWith("reject_")) {
@@ -123,66 +138,42 @@ bot.on("callback_query", async (query) => {
     if (data === "dep_menu") {
         bot.editMessageText("📥 *Choose Method:*", {
             chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
-            reply_markup: { inline_keyboard: [[{ text: "📸 Screenshot", callback_data: "dep_ss" }, { text: "⌨️ Manual", callback_data: "dep_manual" }], [{ text: "⬅ Back", callback_data: "home" }]] }
-        });
-    }
-
-    if (data === "dep_ss") {
-        userState[chatId] = { step: 'WAITING_PHOTO' };
-        bot.sendMessage(chatId, "📸 *Send your payment screenshot now:*");
-    }
-
-    if (data === "dep_manual") {
-        userState[chatId] = { step: 'WAITING_MANUAL' };
-        bot.sendMessage(chatId, "⌨️ *Enter:* `Last3Digits Amount PlayerID` (Ex: 556 500 1234)");
-    }
-
-    if (data === "home") {
-        bot.editMessageText(`💰 *TRX WALLET APP*\n\nSelect an option:`, {
-            chat_id: chatId, message_id: query.message.message_id, parse_mode: "Markdown",
-            reply_markup: { inline_keyboard: [[{ text: "💰 Deposit", callback_data: "dep_menu" }, { text: "💸 Withdraw", callback_data: "withdraw" }], [{ text: "🆘 Support", callback_data: "support" }]] }
+            reply_markup: { inline_keyboard: [[{ text: "📸 Screenshot", callback_data: "dep_ss" }, { text: "⌨️ Manual", callback_data: "dep_manual" }]] }
         });
     }
     bot.answerCallbackQuery(query.id);
 });
 
 // ======================
-// IMPROVED INPUT PROCESSING
+// MESSAGE & OCR PROCESSING
 // ======================
 bot.on('photo', async (msg) => {
     const chatId = msg.chat.id;
     if (userState[chatId]?.step !== 'WAITING_PHOTO') return;
 
-    const loading = await bot.sendMessage(chatId, "⏳ *Reading Image...*", { parse_mode: "Markdown" });
+    const loading = await bot.sendMessage(chatId, "⏳ *Reading Image...*");
     try {
         const file = await bot.getFile(msg.photo[msg.photo.length - 1].file_id);
         const url = `https://api.telegram.org/file/bot${TOKEN}/${file.file_path}`;
         const { data: { text } } = await Tesseract.recognize(url, 'ben+eng');
 
-        // Regex for TRX ID (bKash/Nagad/Nexus)
-        const trxMatch = text.match(/(?:TrxID|ট্রানজেকশন আইডি|TxnId)[:\s]*([A-Z0-9]{8,12})/i);
-        const trx = trxMatch ? trxMatch[1] : text.match(/[A-Z0-9]{8,12}/)?.[0];
-
-        // Regex for Amount (Prioritizing the Base Amount, ignoring the total with fees)
-        // Looks for amounts usually followed by '+' or below the "Total" line
+        const trx = text.match(/[A-Z0-9]{8,12}/)?.[0];
         const amtMatches = text.match(/(\d{1,3}(?:,\d{3})*(?:\.\d{2}))/g);
-        let amt = "0";
-        
-        if (amtMatches) {
-            // Logic: In bKash/Nagad receipts, the base amount is usually the SMALLEST of the main figures 
-            // or follows the pattern "Amount + Fee". We take the first one or logic-check.
-            amt = amtMatches.find(a => !text.includes("Total") || a !== amtMatches[0]) || amtMatches[0];
-            amt = amt.replace(/,/g, '');
-        }
+        let amt = amtMatches ? (amtMatches.find(a => !text.includes("Total") || a !== amtMatches[0]) || amtMatches[0]).replace(/,/g, '') : null;
 
         bot.deleteMessage(chatId, loading.message_id);
-        if (trx) {
+
+        if (trx && amt) {
             userState[chatId] = { step: 'GET_ID_SS', trx, amt };
-            bot.sendMessage(chatId, `✅ *Data Found:*\nTRX: \`${trx}\`\nAmt: \`${amt}\`\n\n👉 Enter your **Player ID**:`, { parse_mode: "Markdown" });
+            bot.sendMessage(chatId, `✅ *Scanned:* TRX: \`${trx}\`, Amt: \`${amt}\`\n👉 Enter **Player ID**:`, { parse_mode: "Markdown" });
         } else {
-            bot.sendMessage(chatId, "❌ Could not find Transaction ID automatically. Use Manual method.");
+            userState[chatId] = { step: 'M_TRX' }; // Automatic Fallback to Step-by-Step
+            bot.sendMessage(chatId, "⚠️ OCR Failed. Let's do it manually.\n\nStep 1: Enter **Transaction ID**:");
         }
-    } catch (e) { bot.sendMessage(chatId, "❌ OCR Error."); }
+    } catch (e) { 
+        userState[chatId] = { step: 'M_TRX' };
+        bot.sendMessage(chatId, "❌ Error. Enter **Transaction ID** manually:");
+    }
 });
 
 bot.on('message', async (msg) => {
@@ -191,23 +182,36 @@ bot.on('message', async (msg) => {
     if (!text || text.startsWith('/')) return;
 
     const state = userState[chatId];
-    if (state?.step === 'WAITING_MANUAL') {
-        const parts = text.split(' ');
-        if (parts.length < 3) return bot.sendMessage(chatId, "Format: `Last3 Amount ID` (123 500 9988)");
-        startVerificationRetry(chatId, { last3: parts[0], amount: parts[1], playerId: parts[2], method: 'Manual' });
+    if (!state) return;
+
+    // STEP-BY-STEP MANUAL FLOW
+    if (state.step === 'M_TRX') {
+        userState[chatId] = { ...state, step: 'M_AMT', trx: text };
+        bot.sendMessage(chatId, "Step 2: Enter **Amount** (Ex: 3900):");
+    } 
+    else if (state.step === 'M_AMT') {
+        userState[chatId] = { ...state, step: 'M_ID', amt: text };
+        bot.sendMessage(chatId, "Step 3: Enter **Player ID**:");
+    } 
+    else if (state.step === 'M_ID') {
+        userState[chatId] = { ...state, step: 'M_NUM', pId: text };
+        bot.sendMessage(chatId, "Step 4: Enter **Sender Phone Number**:");
+    } 
+    else if (state.step === 'M_NUM') {
+        const finalData = { trx_id: state.trx, amount: state.amt, playerId: state.pId, senderNum: text, method: 'Manual' };
         delete userState[chatId];
+        bot.sendMessage(chatId, "⏳ Verifying with database... please wait.");
+        startVerificationRetry(chatId, finalData);
     }
-    if (state?.step === 'GET_ID_SS') {
-        startVerificationRetry(chatId, { trx_id: state.trx, amount: state.amt, playerId: text, method: 'Screenshot' });
+    // SCREENSHOT SUCCESS FLOW
+    else if (state.step === 'GET_ID_SS') {
+        startVerificationRetry(chatId, { trx_id: state.trx, amount: state.amt, playerId: text, senderNum: "From Photo", method: 'Screenshot' });
         delete userState[chatId];
     }
 });
 
 bot.onText(/\/start/, (msg) => {
-    bot.sendMessage(msg.chat.id, `💰 *TRX WALLET APP*\n\nSelect an option:`, {
-        parse_mode: "Markdown",
-        reply_markup: {
-            inline_keyboard: [[{ text: "💰 Deposit", callback_data: "dep_menu" }, { text: "💸 Withdraw", callback_data: "withdraw" }], [{ text: "🆘 Support", callback_data: "support" }]]
-        }
+    bot.sendMessage(msg.chat.id, `💰 *TRX WALLET APP*`, {
+        reply_markup: { inline_keyboard: [[{ text: "💰 Deposit", callback_data: "dep_menu" }, { text: "💸 Withdraw", callback_data: "withdraw" }]] }
     });
 });
