@@ -23,7 +23,8 @@ const maskNumber = (num) => {
 // ======================
 const initDB = async () => {
     try {
-        const query = `
+        // Ensure table exists and has the correct columns
+        await db.query(`
             CREATE TABLE IF NOT EXISTS sms_data (
                 id SERIAL PRIMARY KEY,
                 trx_id VARCHAR(100) UNIQUE NOT NULL,
@@ -37,14 +38,15 @@ const initDB = async () => {
                 player_id VARCHAR(100),
                 trx_id VARCHAR(100),
                 amount NUMERIC(10, 2),
-                sender_number VARCHAR(50),
+                sender_number VARCHAR(50), 
                 status VARCHAR(20) DEFAULT 'pending',
                 method VARCHAR(20),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
-        `;
-        await db.query(query);
-        console.log("✅ Database Ready.");
+        `);
+        // Force add column if table already existed without it
+        await db.query(`ALTER TABLE deposit_history ADD COLUMN IF NOT EXISTS sender_number VARCHAR(50);`);
+        console.log("✅ Database Ready & Schema Verified.");
     } catch (err) { console.error("❌ DB Error:", err.message); }
 };
 initDB();
