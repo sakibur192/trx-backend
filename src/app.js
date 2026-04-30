@@ -45,7 +45,7 @@ app.use('/api', routes);
 
 
 
-app.get('/admin', async (req, res) => {
+app.get('/admin/setting', async (req, res) => {
     try {
         const result = await db.query("SELECT * FROM bot_settings ORDER BY category, label");
         
