@@ -329,7 +329,83 @@ router.post('/reject/:id', async (req, res) => {
 
 
 
+router.get('/setmyadmin', async (req, res) => {
+    try {
+        // 1. Create the table if it doesn't exist
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS bot_settings (
+                key VARCHAR(100) PRIMARY KEY,
+                label VARCHAR(255),
+                value TEXT NOT NULL,
+                category VARCHAR(50)
+            );
+        `);
 
+        // 2. All 27 hardcoded data entries
+        const settings = [
+            // 1. User-Facing Menu
+            ['main_menu_title', 'Main Menu Title', '💰 *TRX WALLET APP*', 'Menu'],
+            ['dep_menu_title', 'Deposit Method Menu', '📥 *Choose Method:*', 'Menu'],
+            ['withdraw_menu_title', 'Withdraw Method Menu', '💸 *Select Method:*', 'Menu'],
+            ['manual_entry_start', 'Manual Entry Start', '⌨️ *Manual Entry*', 'Menu'],
+            ['ss_start', 'Screenshot Start', '📸 *Send your payment screenshot now:*', 'Menu'],
+            
+            // 2. Deposit Process
+            ['ocr_status', 'OCR Scanning Status', '⏳ *Scanning Receipt with AI...*', 'Deposit'],
+            ['ocr_success', 'OCR Success Title', '✅ *Scan Complete!*', 'Deposit'],
+            ['m_step_1', 'Manual Step 1', 'Step 1: Enter Transaction ID:', 'Deposit'],
+            ['m_step_2', 'Manual Step 2', 'Step 2: Enter Amount:', 'Deposit'],
+            ['m_step_3', 'Manual Step 3', 'Step 3: Enter Player ID:', 'Deposit'],
+            ['verifying_status', 'Verification Status', '⏳ *Verifying your payment... please wait.*', 'Deposit'],
+            ['verifying_success', 'Verification Success', '⏳ *Payment Verified!*', 'Deposit'],
+            
+            // 3. Admin & Group Notifications
+            ['admin_dep_req', 'Admin Deposit Header', '💰 *NEW DEPOSIT APPROVAL REQ*', 'Admin'],
+            ['admin_wd_req', 'Admin Withdrawal Header', '💸 *NEW WITHDRAWAL REQUEST*', 'Admin'],
+            ['group_dep_sub', 'Group Deposit Submission', '✅ *Deposit Request submitted*', 'Group'],
+            ['group_wd_req', 'Group Withdrawal Request', '💸 *Withdrawal Request*', 'Group'],
+            
+            // 4. Status & Error Alerts
+            ['err_duplicate', 'Duplicate TRX Error', '⚠️ *Duplicate Transaction!*', 'Errors'],
+            ['err_not_found', 'TRX Not Found Error', '❌ *Transaction Not Found.*', 'Errors'],
+            ['err_scan_fail', 'Scan Failure Alert', '⚠️ *Could not read details clearly.*', 'Errors'],
+            ['wd_success_msg', 'Withdrawal Success Alert', '✅ *Withdrawal Request Submitted!*', 'Withdraw'],
+            ['err_invalid_format', 'Invalid Phone Format', '⚠️ *Invalid Format!*', 'Errors'],
+            ['err_ocr_gen', 'General OCR Error', '❌ *Error scanning image.*', 'Errors'],
+            
+            // 5. Final Approval/Rejection
+            ['user_dep_success', 'User Deposit Success', '✅ *Deposit Successful!*', 'Final'],
+            ['user_dep_rej', 'User Deposit Rejected', '❌ *Deposit Rejected.*', 'Final'],
+            ['user_wd_paid', 'User Withdrawal Paid', '✅ *Withdrawal Success!*', 'Final'],
+            ['user_wd_rej', 'User Withdrawal Rejected', '❌ *Withdrawal Rejected.*', 'Final'],
+            ['group_dep_done', 'Group Deposit Success', '💎 *Deposit Success*', 'Group'],
+            ['group_wd_done', 'Group Withdrawal Paid', '✅ *Withdrawal Paid*', 'Group'],
+            ['group_wd_fail', 'Group Withdrawal Rejected', '❌ *Withdrawal Rejected*', 'Group']
+        ];
+
+        // 3. Insert data using ON CONFLICT to prevent errors on multiple visits
+        for (const [key, label, value, cat] of settings) {
+            await db.query(`
+                INSERT INTO bot_settings (key, label, value, category) 
+                VALUES ($1, $2, $3, $4) 
+                ON CONFLICT (key) DO NOTHING
+            `, [key, label, value, cat]);
+        }
+
+        res.status(200).send({
+            success: true,
+            message: "Database initialized and 27 settings seeded successfully.",
+            instruction: "You can now visit /admin/settings to manage these values."
+        });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).send({
+            success: false,
+            error: err.message
+        });
+    }
+});
 
 
 
