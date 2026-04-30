@@ -89,34 +89,26 @@ router.post('/sms', async (req, res) => {
   try {
     const { trx_id, amount, sender } = req.body;
 
-    // 1. Ensure the unique constraint exists (Runs every time, but very fast)
-    // This avoids manual DDL runs. 
-    // We use a subquery check to see if the constraint already exists in pg_constraint.
-    await db.query(`
-      DO $$ 
-      BEGIN 
-        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unique_trx_id') THEN
-          ALTER TABLE sms_data ADD CONSTRAINT unique_trx_id UNIQUE (trx_id);
-        END IF;
-      END $$;
-    `);
+    // 1. Check if it exists
+    const checkExist = await db.query(
+      'SELECT trx_id FROM sms_data WHERE trx_id = $1',
+      [trx_id]
+    );
 
-    // 2. Perform the Upsert/Insert logic
+    if (checkExist.rows.length > 0) {
+      return res.status(409).json({
+        status: 'exists',
+        message: 'Transaction ID already exists in database'
+      });
+    }
+
+    // 2. If not, insert
     const result = await db.query(
       `INSERT INTO sms_data (trx_id, amount, sender)
        VALUES ($1, $2, $3)
-       ON CONFLICT (trx_id) DO NOTHING
        RETURNING *`,
       [trx_id, amount, sender]
     );
-
-    // 3. Handle Duplicate Case
-    if (result.rows.length === 0) {
-      return res.status(409).json({
-        status: 'exists',
-        message: 'Transaction ID already recorded'
-      });
-    }
 
     res.json({
       status: 'inserted',
@@ -124,11 +116,9 @@ router.post('/sms', async (req, res) => {
     });
 
   } catch (err) {
-    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
-
 
 
 /**
