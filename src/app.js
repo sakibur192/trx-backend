@@ -58,226 +58,207 @@ app.get('/admin/settings', async (req, res) => {
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
                 <style>
-                    :root { 
-                        --tg-bg: #8da6ba; 
-                        --tg-sent: #effdde; 
-                        --tg-received: #ffffff; 
-                        --tg-blue: #3390ec; 
-                        --tg-header: #517da2;
-                        --tg-text: #000000;
-                        --tg-meta: #a0acb6;
-                    }
-                    body { background: #e6ebee; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; }
+                    :root { --tg-bg: #8da6ba; --tg-sent: #effdde; --tg-received: #ffffff; --tg-blue: #3390ec; --tg-header: #517da2; --tg-meta: #a0acb6; }
+                    body { background: #e6ebee; font-family: -apple-system, system-ui, sans-serif; margin: 0; padding: 0; overflow-x: hidden; }
                     
-                    /* Telegram App Shell */
-                    .tg-main { max-width: 450px; margin: 0 auto; height: 100vh; display: flex; flex-direction: column; background: var(--tg-bg) url("https://www.transparenttextures.com/patterns/cubes.png"); position: relative; box-shadow: 0 0 20px rgba(0,0,0,0.2); }
+                    .tg-container { max-width: 450px; margin: 0 auto; height: 100vh; display: flex; flex-direction: column; background: var(--tg-bg) url("https://www.transparenttextures.com/patterns/cubes.png"); box-shadow: 0 0 15px rgba(0,0,0,0.2); }
+                    .tg-header { background: var(--tg-header); color: white; padding: 10px 15px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+                    .tg-body { flex-grow: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; scroll-behavior: smooth; }
                     
-                    /* Header */
-                    .tg-header { background: var(--tg-header); color: white; padding: 10px 15px; display: flex; align-items: center; gap: 15px; flex-shrink: 0; }
-                    .tg-header-info { line-height: 1.2; }
-                    .tg-header-name { font-weight: bold; font-size: 16px; display: block; }
-                    .tg-header-status { font-size: 12px; opacity: 0.8; }
-
-                    /* Message Area */
-                    .tg-content { flex-grow: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
                     .date-divider { align-self: center; background: rgba(74, 99, 120, 0.4); color: white; padding: 2px 12px; border-radius: 12px; font-size: 11px; margin: 15px 0; font-weight: 500; }
+                    .sys-label { font-size: 11px; color: #fff; background: rgba(0,0,0,0.3); padding: 2px 8px; border-radius: 5px; margin-top: 10px; align-self: flex-start; text-transform: uppercase; }
 
-                    /* Message Bubbles */
-                    .msg-row { display: flex; flex-direction: column; width: 100%; position: relative; }
+                    .msg-wrap { display: flex; flex-direction: column; width: 100%; position: relative; }
                     .received { align-items: flex-start; }
                     .sent { align-items: flex-end; }
                     
                     .bubble { 
-                        max-width: 85%; padding: 6px 10px 6px 12px; border-radius: 12px; position: relative; 
+                        max-width: 85%; padding: 7px 12px; border-radius: 15px; position: relative; 
                         box-shadow: 0 1px 1px rgba(0,0,0,0.1); cursor: pointer; border: 2px solid transparent; 
-                        transition: all 0.1s; line-height: 1.4; font-size: 14.5px;
+                        line-height: 1.4; font-size: 14px; transition: 0.1s;
                     }
-                    .received .bubble { background: var(--tg-received); border-bottom-left-radius: 4px; color: var(--tg-text); }
-                    .sent .bubble { background: var(--tg-sent); border-bottom-right-radius: 4px; color: var(--tg-text); }
-                    
-                    /* Hover Edit Effect */
-                    .bubble:hover { border-color: var(--tg-blue); filter: brightness(0.98); }
-                    .edit-icon { position: absolute; right: -25px; top: 50%; transform: translateY(-50%); color: var(--tg-blue); opacity: 0; font-size: 14px; }
-                    .bubble:hover .edit-icon { opacity: 1; }
+                    .received .bubble { background: var(--tg-received); border-bottom-left-radius: 4px; color: #000; }
+                    .sent .bubble { background: var(--tg-sent); border-bottom-right-radius: 4px; color: #000; }
+                    .bubble:hover { border-color: var(--tg-blue); transform: scale(1.01); }
 
-                    /* System Tags */
-                    .key-hint { display: block; font-size: 10px; color: var(--tg-blue); font-weight: bold; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
-                    .group-label { font-size: 11px; color: #fff; background: rgba(0,0,0,0.2); padding: 1px 6px; border-radius: 4px; margin-bottom: 2px; align-self: flex-start; }
+                    .key-name { display: block; font-size: 9px; color: var(--tg-blue); font-weight: bold; margin-bottom: 2px; border-bottom: 1px solid #eee; }
+                    .time { font-size: 10px; color: var(--tg-meta); float: right; margin: 5px 0 0 8px; }
 
-                    /* Metadata */
-                    .time { font-size: 10px; color: var(--tg-meta); float: right; margin: 6px 0 0 8px; }
-                    .sent .time { color: #5fb35a; }
+                    .tg-kbd { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 8px; width: 100%; }
+                    .tg-btn { background: rgba(255,255,255,0.7); border: 1px solid rgba(0,0,0,0.05); border-radius: 6px; padding: 6px; text-align: center; font-size: 13px; color: var(--tg-blue); font-weight: 500; }
 
-                    /* Inline Keyboards */
-                    .inline-kbd { display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 4px; margin-top: 8px; }
-                    .kbd-btn { background: rgba(255,255,255,0.7); border: 1px solid rgba(0,0,0,0.05); border-radius: 6px; padding: 6px; text-align: center; font-size: 13px; color: var(--tg-blue); font-weight: 500; }
-
-                    /* Scrollbar */
-                    .tg-content::-webkit-scrollbar { width: 4px; }
-                    .tg-content::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 10px; }
+                    /* Modal Styles */
+                    #editor { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:1000; align-items:center; justify-content:center; }
+                    .modal-box { background:white; width:90%; max-width:400px; border-radius:15px; padding:20px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+                    textarea { width:100%; height:150px; margin: 15px 0; border: 1px solid #ddd; border-radius: 8px; padding: 10px; font-family: inherit; font-size: 14px; }
                 </style>
             </head>
             <body>
 
-            <div class="tg-main">
+            <div class="tg-container">
                 <div class="tg-header">
-                    <div style="font-size: 20px;">☰</div>
-                    <div class="tg-header-info">
-                        <span class="tg-header-name">Bot Live Editor</span>
-                        <span class="tg-header-status">Editing 29 message keys</span>
-                    </div>
+                    <div style="font-size:20px">⬅</div>
+                    <div><b style="display:block">Bot Settings (29 Keys)</b><small>Tap any bubble to edit</small></div>
                 </div>
 
-                <div class="tg-content">
-                    <div class="date-divider">MAIN INTERFACE</div>
+                <div class="tg-body">
+                    <div class="date-divider">USER INTERFACE FLOW</div>
 
-                    <!-- 1. START & MAIN MENU -->
-                    <div class="msg-row sent"><div class="bubble">/start<span class="time">10:00</span></div></div>
-                    
-                    <div class="msg-row received" onclick="openEditModal('main_menu_title')">
-                        <div class="bubble">
-                            <span class="key-hint">main_menu_title</span>
-                            ${val('main_menu_title')}
-                            <div class="inline-kbd"><div class="kbd-btn">💰 Deposit</div><div class="kbd-btn">💸 Withdraw</div></div>
-                            <span class="time">10:00</span><span class="edit-icon">✎</span>
-                        </div>
+                    <div class="msg-wrap sent"><div class="bubble">/start<span class="time">12:00</span></div></div>
+                    <div class="msg-wrap received" onclick="openEditor('main_menu_title')">
+                        <div class="bubble"><span class="key-name">main_menu_title</span>${val('main_menu_title')}<div class="tg-kbd"><div class="tg-btn">Deposit</div><div class="tg-btn">Withdraw</div></div><span class="time">12:00</span></div>
                     </div>
 
-                    <div class="date-divider">DEPOSIT PROCESS</div>
-
-                    <!-- 2. DEPOSIT MENU -->
-                    <div class="msg-row sent"><div class="bubble">Deposit<span class="time">10:01</span></div></div>
-                    <div class="msg-row received" onclick="openEditModal('dep_menu_title')">
-                        <div class="bubble">
-                            <span class="key-hint">dep_menu_title</span>
-                            ${val('dep_menu_title')}
-                            <div class="inline-kbd"><div class="kbd-btn">📸 Screenshot</div><div class="kbd-btn">⌨️ Manual</div></div>
-                            <span class="time">10:01</span><span class="edit-icon">✎</span>
-                        </div>
+                    <div class="msg-wrap sent"><div class="bubble">Deposit</div></div>
+                    <div class="msg-wrap received" onclick="openEditor('dep_menu_title')">
+                        <div class="bubble"><span class="key-name">dep_menu_title</span>${val('dep_menu_title')}<div class="tg-kbd"><div class="tg-btn">Screenshot</div><div class="tg-btn">Manual</div></div></div>
                     </div>
 
-                    <!-- 3. MANUAL ENTRY (TITLE + STEP 1) -->
-                    <div class="msg-row sent"><div class="bubble">Manual Entry<span class="time">10:02</span></div></div>
-                    <div class="msg-row received" onclick="openEditModal('manual_entry_start')">
-                        <div class="bubble">
-                            <span class="key-hint">manual_entry_start + m_step_1</span>
-                            ${val('manual_entry_start')}<br>${val('m_step_1')}
-                            <span class="time">10:02</span><span class="edit-icon">✎</span>
-                        </div>
+                    <div class="msg-wrap sent"><div class="bubble">Manual Entry</div></div>
+                    <div class="msg-wrap received" onclick="openEditor('manual_entry_start')">
+                        <div class="bubble"><span class="key-name">manual_entry_start + m_step_1</span>${val('manual_entry_start')}<br><br>${val('m_step_1')}</div>
                     </div>
 
-                    <!-- 4. MANUAL STEPS 2 & 3 -->
-                    <div class="msg-row sent"><div class="bubble">TRX8822991<span class="time">10:02</span></div></div>
-                    <div class="msg-row received" onclick="openEditModal('m_step_2')">
-                        <div class="bubble"><span class="key-hint">m_step_2</span>${val('m_step_2')}<span class="time">10:02</span><span class="edit-icon">✎</span></div>
+                    <div class="msg-wrap sent"><div class="bubble">TRX77889900</div></div>
+                    <div class="msg-wrap received" onclick="openEditor('m_step_2')">
+                        <div class="bubble"><span class="key-name">m_step_2</span>${val('m_step_2')}</div>
                     </div>
 
-                    <div class="msg-row sent"><div class="bubble">1000<span class="time">10:03</span></div></div>
-                    <div class="msg-row received" onclick="openEditModal('m_step_3')">
-                        <div class="bubble"><span class="key-hint">m_step_3</span>${val('m_step_3')}<span class="time">10:03</span><span class="edit-icon">✎</span></div>
+                    <div class="msg-wrap sent"><div class="bubble">500</div></div>
+                    <div class="msg-wrap received" onclick="openEditor('m_step_3')">
+                        <div class="bubble"><span class="key-name">m_step_3</span>${val('m_step_3')}</div>
                     </div>
 
-                    <!-- 5. SCREENSHOT FLOW -->
-                    <div class="msg-row sent"><div class="bubble">Screenshot<span class="time">10:04</span></div></div>
-                    <div class="msg-row received" onclick="openEditModal('ss_start')">
-                        <div class="bubble"><span class="key-hint">ss_start</span>${val('ss_start')}<span class="time">10:04</span><span class="edit-icon">✎</span></div>
+                    <div class="msg-wrap sent"><div class="bubble">PLAYER_ID_1</div></div>
+                    <div class="msg-wrap received" onclick="openEditor('verifying_status')">
+                        <div class="bubble"><span class="key-name">verifying_status</span><i>${val('verifying_status')}</i></div>
                     </div>
 
-                    <div class="msg-row received" onclick="openEditModal('verifying_status')">
-                        <div class="bubble"><span class="key-hint">verifying_status</span><i>${val('verifying_status')}</i><span class="time">10:05</span><span class="edit-icon">✎</span></div>
+                    <div class="msg-wrap received" onclick="openEditor('ss_start')">
+                        <div class="bubble"><span class="key-name">ss_start</span>${val('ss_start')}</div>
                     </div>
 
-                    <div class="date-divider">WITHDRAWAL PROCESS</div>
-
-                    <!-- 6. WITHDRAW MENU -->
-                    <div class="msg-row sent"><div class="bubble">Withdraw<span class="time">10:06</span></div></div>
-                    <div class="msg-row received" onclick="openEditModal('withdraw_menu_title')">
-                        <div class="bubble">
-                            <span class="key-hint">withdraw_menu_title</span>
-                            ${val('withdraw_menu_title')}
-                            <div class="inline-kbd">
-                                <div class="kbd-btn">bKash</div><div class="kbd-btn">Nagad</div>
-                                <div class="kbd-btn">Rocket</div><div class="kbd-btn">Upay</div>
-                            </div>
-                            <span class="time">10:06</span><span class="edit-icon">✎</span>
-                        </div>
+                    <div class="msg-wrap received" onclick="openEditor('user_dep_success')">
+                        <div class="bubble"><span class="key-name">user_dep_success</span>${val('user_dep_success')}</div>
                     </div>
 
-                    <div class="msg-row received" onclick="openEditModal('wd_success_msg')">
-                        <div class="bubble"><span class="key-hint">wd_success_msg</span>${val('wd_success_msg')}<span class="time">10:07</span><span class="edit-icon">✎</span></div>
+                    <div class="date-divider">WITHDRAWAL FLOW</div>
+
+                    <div class="msg-wrap sent"><div class="bubble">Withdraw</div></div>
+                    <div class="msg-wrap received" onclick="openEditor('withdraw_menu_title')">
+                        <div class="bubble"><span class="key-name">withdraw_menu_title</span>${val('withdraw_menu_title')}<div class="tg-kbd"><div class="tg-btn">bKash</div><div class="tg-btn">Nagad</div></div></div>
                     </div>
 
-                    <div class="date-divider">ERROR STATES</div>
+                    <div class="msg-wrap sent"><div class="bubble">017XXXXXXXX</div></div>
+                    <div class="msg-wrap sent"><div class="bubble">200</div></div>
+                    <div class="msg-wrap sent"><div class="bubble">PLAYER_ID_1</div></div>
 
-                    <div class="msg-row received" onclick="openEditModal('err_invalid_format')">
-                        <div class="bubble" style="border-left: 3px solid #e74c3c;"><span class="key-hint">err_invalid_format</span>${val('err_invalid_format')}<span class="time">10:08</span></div>
+                    <div class="msg-wrap received" onclick="openEditor('wd_success_msg')">
+                        <div class="bubble"><span class="key-name">wd_success_msg</span>${val('wd_success_msg')}</div>
                     </div>
 
-                    <div class="msg-row received" onclick="openEditModal('err_not_found')">
-                        <div class="bubble" style="border-left: 3px solid #e74c3c;"><span class="key-hint">err_not_found</span>${val('err_not_found')}<span class="time">10:08</span></div>
+                    <div class="msg-wrap received" onclick="openEditor('user_wd_paid')">
+                        <div class="bubble"><span class="key-name">user_wd_paid</span>${val('user_wd_paid')}</div>
                     </div>
 
-                    <div class="msg-row received" onclick="openEditModal('err_scan_fail')">
-                        <div class="bubble" style="border-left: 3px solid #e74c3c;"><span class="key-hint">err_scan_fail</span>${val('err_scan_fail')}<span class="time">10:09</span></div>
+                    <div class="date-divider">SYSTEM ERRORS</div>
+
+                    <div class="msg-wrap received" onclick="openEditor('err_invalid_format')">
+                        <div class="bubble" style="border-left:4px solid #e74c3c"><span class="key-name">err_invalid_format</span>${val('err_invalid_format')}</div>
                     </div>
 
-                    <div class="date-divider">ADMIN & GROUP LOGS</div>
-
-                    <!-- 7. GROUP LOGS -->
-                    <div class="group-label">Public Payment Group</div>
-                    <div class="msg-row received" onclick="openEditModal('group_dep_sub')">
-                        <div class="bubble"><span class="key-hint">group_dep_sub</span>${val('group_dep_sub')}<span class="time">10:10</span><span class="edit-icon">✎</span></div>
+                    <div class="msg-wrap received" onclick="openEditor('err_not_found')">
+                        <div class="bubble" style="border-left:4px solid #e74c3c"><span class="key-name">err_not_found</span>${val('err_not_found')}</div>
                     </div>
 
-                    <div class="msg-row received" onclick="openEditModal('group_dep_done')">
-                        <div class="bubble"><span class="key-hint">group_dep_done</span>${val('group_dep_done')}<span class="time">10:11</span><span class="edit-icon">✎</span></div>
+                    <div class="msg-wrap received" onclick="openEditor('err_scan_fail')">
+                        <div class="bubble" style="border-left:4px solid #e74c3c"><span class="key-name">err_scan_fail</span>${val('err_scan_fail')}</div>
                     </div>
 
-                    <!-- 8. ADMIN ALERTS -->
-                    <div class="group-label" style="background: #e67e22;">Admin Alert</div>
-                    <div class="msg-row received" onclick="openEditModal('admin_wd_req')">
-                        <div class="bubble" style="background: #fffbe6;">
-                            <span class="key-hint">admin_wd_req</span>
-                            ${val('admin_wd_req')}
-                            <div class="inline-kbd"><div class="kbd-btn" style="color:green">✅ APPROVE</div><div class="kbd-btn" style="color:red">❌ REJECT</div></div>
-                            <span class="time">10:12</span><span class="edit-icon">✎</span>
-                        </div>
+                    <div class="msg-wrap received" onclick="openEditor('user_dep_rej')">
+                        <div class="bubble" style="border-left:4px solid #e74c3c"><span class="key-name">user_dep_rej</span>${val('user_dep_rej')}</div>
                     </div>
 
-                    <div class="msg-row received" onclick="openEditModal('group_wd_req')">
-                        <div class="bubble"><span class="key-hint">group_wd_req</span>${val('group_wd_req')}<span class="time">10:12</span><span class="edit-icon">✎</span></div>
+                    <div class="msg-wrap received" onclick="openEditor('user_wd_rej')">
+                        <div class="bubble" style="border-left:4px solid #e74c3c"><span class="key-name">user_wd_rej</span>${val('user_wd_rej')}</div>
+                    </div>
+
+                    <div class="msg-wrap received" onclick="openEditor('err_low_bal')">
+                        <div class="bubble" style="border-left:4px solid #e74c3c"><span class="key-name">err_low_bal</span>${val('err_low_bal')}</div>
+                    </div>
+
+                    <div class="msg-wrap received" onclick="openEditor('err_timeout')">
+                        <div class="bubble" style="border-left:4px solid #e74c3c"><span class="key-name">err_timeout</span>${val('err_timeout')}</div>
+                    </div>
+
+                    <div class="date-divider">PUBLIC GROUP & ADMIN LOGS</div>
+
+                    <div class="sys-label">Public Group</div>
+                    <div class="msg-wrap received" onclick="openEditor('group_dep_sub')">
+                        <div class="bubble"><span class="key-name">group_dep_sub</span>${val('group_dep_sub')}</div>
+                    </div>
+
+                    <div class="msg-wrap received" onclick="openEditor('group_dep_done')">
+                        <div class="bubble"><span class="key-name">group_dep_done</span>${val('group_dep_done')}</div>
+                    </div>
+
+                    <div class="msg-wrap received" onclick="openEditor('group_wd_req')">
+                        <div class="bubble"><span class="key-name">group_wd_req</span>${val('group_wd_req')}</div>
+                    </div>
+
+                    <div class="msg-wrap received" onclick="openEditor('group_wd_done')">
+                        <div class="bubble"><span class="key-name">group_wd_done</span>${val('group_wd_done')}</div>
+                    </div>
+
+                    <div class="msg-wrap received" onclick="openEditor('group_wd_fail')">
+                        <div class="bubble"><span class="key-name">group_wd_fail</span>${val('group_wd_fail')}</div>
+                    </div>
+
+                    <div class="sys-label" style="background:#444">Admin Internal</div>
+                    <div class="msg-wrap received" onclick="openEditor('admin_wd_req')">
+                        <div class="bubble" style="background:#fffbe6"><span class="key-name">admin_wd_req</span>${val('admin_wd_req')}<div class="tg-kbd"><div class="tg-btn" style="color:green">DONE</div><div class="tg-btn" style="color:red">REJECT</div></div></div>
+                    </div>
+
+                    <div class="msg-wrap received" onclick="openEditor('admin_dep_req')">
+                        <div class="bubble" style="background:#fffbe6"><span class="key-name">admin_dep_req</span>${val('admin_dep_req')}</div>
+                    </div>
+
+                    <div class="msg-wrap received" onclick="openEditor('admin_new_user')">
+                        <div class="bubble" style="background:#fffbe6"><span class="key-name">admin_new_user</span>${val('admin_new_user')}</div>
+                    </div>
+
+                    <div class="msg-wrap received" onclick="openEditor('group_stats_daily')">
+                        <div class="bubble" style="background:#fffbe6"><span class="key-name">group_stats_daily</span>${val('group_stats_daily')}</div>
+                    </div>
+
+                    <div class="msg-wrap received" onclick="openEditor('admin_alert_low_liq')">
+                        <div class="bubble" style="background:#fffbe6; border:1px solid orange"><span class="key-name">admin_alert_low_liq</span>${val('admin_alert_low_liq')}</div>
                     </div>
                 </div>
             </div>
 
-            <!-- Edit Modal -->
-            <div class="modal fade" id="editModal" tabindex="-1" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:100;">
-                <div class="modal-dialog" style="max-width:400px; margin: 100px auto; background:white; border-radius:15px; overflow:hidden;">
-                    <form action="/admin/settings/update" method="POST">
-                        <div style="padding:15px; background:#f5f5f5; border-bottom:1px solid #ddd; font-weight:bold;" id="modalKey">Edit Key</div>
-                        <div style="padding:15px;">
-                            <input type="hidden" name="key" id="inputKey">
-                            <textarea name="value" id="inputValue" style="width:100%; height:120px; border:1px solid #ccc; border-radius:8px; padding:10px; font-family:inherit;"></textarea>
-                        </div>
-                        <div style="padding:10px; display:flex; gap:10px;">
-                            <button type="button" onclick="closeModal()" style="flex:1; padding:10px; border:none; border-radius:8px;">Cancel</button>
-                            <button type="submit" style="flex:1; padding:10px; border:none; border-radius:8px; background:var(--tg-blue); color:white; font-weight:bold;">Save Changes</button>
-                        </div>
-                    </form>
-                </div>
+            <!-- Editor UI -->
+            <div id="editor">
+                <form class="modal-box" action="/admin/settings/update" method="POST">
+                    <h3 id="editKeyLabel" style="margin:0; font-size:16px; color:var(--tg-blue)"></h3>
+                    <input type="hidden" name="key" id="inputKey">
+                    <textarea name="value" id="inputValue"></textarea>
+                    <div style="display:flex; gap:10px">
+                        <button type="button" onclick="closeEditor()" style="flex:1; padding:10px; border:none; border-radius:8px">Cancel</button>
+                        <button type="submit" style="flex:1; padding:10px; border:none; border-radius:8px; background:var(--tg-blue); color:white">Save</button>
+                    </div>
+                </form>
             </div>
 
             <script>
-                const settings = ${JSON.stringify(settingsMap)};
-                function openEditModal(key) {
+                const data = ${JSON.stringify(settingsMap)};
+                function openEditor(key) {
                     document.getElementById('inputKey').value = key;
-                    document.getElementById('modalKey').innerText = "Edit: " + key;
-                    document.getElementById('inputValue').value = settings[key] ? settings[key].value : "";
-                    document.getElementById('editModal').style.display = 'block';
+                    document.getElementById('editKeyLabel').innerText = "Editing: " + key;
+                    document.getElementById('inputValue').value = data[key] ? data[key].value : "";
+                    document.getElementById('editor').style.display = 'flex';
                 }
-                function closeModal() {
-                    document.getElementById('editModal').style.display = 'none';
-                }
+                function closeEditor() { document.getElementById('editor').style.display = 'none'; }
             </script>
             </body>
             </html>
