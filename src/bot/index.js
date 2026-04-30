@@ -190,27 +190,7 @@ bot.on('message', async (msg) => {
             }
         };
 
-     return bot.sendMessage(chatId, `💰 *TRX WALLET APP*\nWelcome! Choose an option below:`, {
-    parse_mode: "Markdown",
-    reply_markup: {
-      keyboard: [
-        ["🚀 Start"],
-        ["💰 Deposit", "💸 Withdraw"]
-      ],
-      resize_keyboard: true,
-      one_time_keyboard: false
-    },
-    inline_keyboard: [
-      [{ text: "💰 Deposit", callback_data: "dep_menu" },
-       { text: "💸 Withdraw", callback_data: "withdraw" }]
-    ]
-  }
-)
-
-
-
-
-        
+        return bot.sendMessage(chatId, `💰 *TRX WALLET APP*\nWelcome! Choose an option below:`, menuOptions)
             .catch(err => console.error("Error sending start message:", err));
     }
 
