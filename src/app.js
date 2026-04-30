@@ -49,6 +49,7 @@ app.get('/admin/settings', async (req, res) => {
         const settingsMap = {};
         result.rows.forEach(row => { settingsMap[row.key] = row; });
 
+        // Helper to render text with Telegram-style line breaks
         const val = (key) => (settingsMap[key] ? settingsMap[key].value.replace(/\n/g, '<br>') : `<span style="color:red">[Missing: ${key}]</span>`);
 
         res.send(`
@@ -56,203 +57,171 @@ app.get('/admin/settings', async (req, res) => {
             <html lang="en">
             <head>
                 <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Telegram Bot Management</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                <title>Telegram Bot Simulator</title>
                 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
                 <style>
-                    :root {
-                        --tg-bg: #547594;
-                        --tg-sent: #effdde;
-                        --tg-received: #ffffff;
-                        --tg-date: rgba(74, 99, 120, 0.5);
-                        --tg-button: #3390ec;
+                    :root { --tg-bg: #8da6ba; --tg-sent: #effdde; --tg-white: #ffffff; --tg-blue: #3390ec; }
+                    body { background: #e6ebee; font-family: -apple-system, system-ui, sans-serif; overflow-x: hidden; }
+                    
+                    /* Layout */
+                    .tg-container { display: flex; gap: 10px; padding: 15px; overflow-x: auto; height: 100vh; align-items: flex-start; }
+                    .phone-screen { 
+                        min-width: 320px; max-width: 360px; height: 85vh; 
+                        background: var(--tg-bg) url("https://www.transparenttextures.com/patterns/cubes.png"); 
+                        border-radius: 20px; display: flex; flex-direction: column; 
+                        box-shadow: 0 10px 25px rgba(0,0,0,0.2); position: relative; border: 8px solid #222;
                     }
-                    body { background-color: #e6ebee; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto; margin: 0; }
+                    .screen-header { background: #517da2; color: white; padding: 12px; font-weight: bold; font-size: 0.9rem; text-align: center; border-radius: 10px 10px 0 0; }
+                    .chat-area { flex-grow: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
                     
-                    /* Sidebar Simulation */
-                    .tg-layout { display: flex; height: 100vh; overflow: hidden; }
-                    .tg-sidebar { width: 300px; background: white; border-right: 1px solid #dfe5e9; overflow-y: auto; }
-                    .tg-chat-area { flex-grow: 1; display: flex; flex-direction: column; background: #8da6ba url("https://www.transparenttextures.com/patterns/cubes.png"); position: relative; }
+                    /* Telegram Bubbles */
+                    .msg { display: flex; flex-direction: column; max-width: 85%; position: relative; cursor: pointer; }
+                    .msg.bot { align-items: flex-start; }
+                    .msg.user { align-items: flex-end; align-self: flex-end; }
                     
-                    /* Chat List */
-                    .chat-item { padding: 12px 15px; border-bottom: 1px solid #f2f2f2; cursor: pointer; display: flex; align-items: center; gap: 12px; }
-                    .chat-item:hover { background: #f4f4f5; }
-                    .chat-item.active { background: var(--tg-button); color: white; }
-                    .avatar { width: 45px; height: 45px; border-radius: 50%; background: #40a7e3; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; }
-
-                    /* Message Bubbles */
-                    .messages-container { flex-grow: 1; overflow-y: auto; padding: 20px 10%; display: flex; flex-direction: column; }
-                    .msg-row { display: flex; flex-direction: column; margin-bottom: 8px; width: 100%; position: relative; }
-                    .msg-row.received { align-items: flex-start; }
-                    .msg-row.sent { align-items: flex-end; }
-                    
-                    .bubble {
-                        max-width: 85%;
-                        padding: 6px 12px 8px 12px;
-                        border-radius: 12px;
-                        position: relative;
-                        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-                        cursor: pointer;
-                        border: 2px solid transparent;
-                        transition: all 0.2s;
+                    .bubble { 
+                        padding: 8px 12px; border-radius: 15px; font-size: 0.9rem; position: relative; 
+                        box-shadow: 0 1px 2px rgba(0,0,0,0.1); border: 2px solid transparent; 
                     }
-                    .bubble:hover { border-color: var(--tg-button); filter: brightness(0.98); }
-                    .received .bubble { background: var(--tg-received); border-bottom-left-radius: 2px; }
-                    .sent .bubble { background: var(--tg-sent); border-bottom-right-radius: 2px; }
+                    .bot .bubble { background: var(--tg-white); border-bottom-left-radius: 2px; }
+                    .user .bubble { background: var(--tg-sent); border-bottom-right-radius: 2px; }
+                    .msg:hover .bubble { border-color: var(--tg-blue); }
+
+                    /* Edit Overlay */
+                    .edit-hint { position: absolute; top: -18px; left: 5px; font-size: 0.65rem; font-weight: bold; color: #fff; background: var(--tg-blue); padding: 1px 6px; border-radius: 4px; opacity: 0; }
+                    .msg:hover .edit-hint { opacity: 1; }
+
+                    /* Keyboards */
+                    .tg-kbd { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 8px; width: 100%; }
+                    .tg-btn { background: rgba(255,255,255,0.8); border: 1px solid rgba(0,0,0,0.1); border-radius: 6px; padding: 5px; text-align: center; font-size: 0.8rem; color: var(--tg-blue); font-weight: 500; }
                     
-                    .edit-btn { 
-                        position: absolute; top: -10px; right: -10px; background: var(--tg-button); 
-                        color: white; border-radius: 50%; width: 22px; height: 22px; 
-                        display: flex; align-items: center; justify-content: center; font-size: 12px;
-                        opacity: 0; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-                    }
-                    .bubble:hover .edit-btn { opacity: 1; }
+                    .admin-alert { border-left: 4px solid #f39c12 !important; border-radius: 4px !important; }
+                    .error-bubble { border-left: 4px solid #e74c3c !important; }
 
-                    /* Text Styles */
-                    .msg-text { font-size: 0.95rem; line-height: 1.4; color: #000; word-break: break-word; }
-                    .key-hint { font-size: 0.65rem; color: #3390ec; font-weight: bold; display: block; margin-bottom: 2px; text-transform: uppercase; }
-                    .time { font-size: 0.7rem; color: #a0acb6; float: right; margin-top: 4px; margin-left: 8px; }
-
-                    /* Telegram Buttons */
-                    .inline-kbd { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 8px; max-width: 100%; }
-                    .ik-btn { background: rgba(255,255,255,0.7); border: 1px solid rgba(0,0,0,0.05); border-radius: 4px; padding: 4px; text-align: center; font-size: 0.85rem; color: #3390ec; font-weight: 500; }
-
-                    /* Scrollbar */
-                    ::-webkit-scrollbar { width: 6px; }
-                    ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 10px; }
+                    @media (max-width: 768px) { .tg-container { flex-direction: column; align-items: center; } .phone-screen { min-width: 95%; height: 70vh; } }
                 </style>
             </head>
             <body>
 
-            <div class="tg-layout">
-                <!-- Sidebar -->
-                <div class="tg-sidebar">
-                    <div class="p-3 bg-light border-bottom fw-bold text-muted">Telegram Admin</div>
-                    <div class="chat-item active">
-                        <div class="avatar">Bot</div>
-                        <div>
-                            <div class="fw-bold small">User Interface</div>
-                            <div class="small text-muted">Main & Deposit Flow</div>
+            <div class="tg-container">
+                
+                <!-- 1. USER INTERFACE (DM) -->
+                <div class="phone-screen">
+                    <div class="screen-header">Bot (Private DM)</div>
+                    <div class="chat-area">
+                        <div class="msg user"><div class="bubble">/start</div></div>
+                        <div class="msg bot" onclick="openEditModal('main_menu_title')">
+                            <div class="edit-hint">main_menu_title</div>
+                            <div class="bubble">${val('main_menu_title')}<div class="tg-kbd"><div class="tg-btn">Deposit</div><div class="tg-btn">Withdraw</div></div></div>
                         </div>
-                    </div>
-                    <div class="chat-item">
-                        <div class="avatar" style="background:#51bc9d">Grp</div>
-                        <div>
-                            <div class="fw-bold small">Public Group</div>
-                            <div class="small text-muted">Transaction Logs</div>
+
+                        <div class="msg bot" onclick="openEditModal('dep_menu_title')">
+                            <div class="edit-hint">dep_menu_title</div>
+                            <div class="bubble">${val('dep_menu_title')}<div class="tg-kbd"><div class="tg-btn">Screenshot</div><div class="tg-btn">Manual</div></div></div>
                         </div>
-                    </div>
-                    <div class="chat-item">
-                        <div class="avatar" style="background:#e57e78">Adm</div>
-                        <div>
-                            <div class="fw-bold small">Admin Alerts</div>
-                            <div class="small text-muted">Pending Tasks</div>
+
+                        <div class="msg bot" onclick="openEditModal('manual_entry_start')">
+                            <div class="edit-hint">manual_entry_start</div>
+                            <div class="bubble">${val('manual_entry_start')}</div>
+                        </div>
+
+                        <div class="msg bot" onclick="openEditModal('m_step_1')">
+                            <div class="edit-hint">m_step_1</div><div class="bubble">${val('m_step_1')}</div>
+                        </div>
+
+                        <div class="msg bot error-bubble" onclick="openEditModal('err_invalid_format')">
+                            <div class="edit-hint">err_invalid_format</div><div class="bubble">${val('err_invalid_format')}</div>
+                        </div>
+
+                        <div class="msg bot" onclick="openEditModal('verifying_status')">
+                            <div class="edit-hint">verifying_status</div><div class="bubble"><i>${val('verifying_status')}</i></div>
+                        </div>
+                        
+                        <div class="msg bot" onclick="openEditModal('user_dep_success')">
+                            <div class="edit-hint">user_dep_success</div><div class="bubble">${val('user_dep_success')}</div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Chat Canvas -->
-                <div class="tg-chat-area">
-                    <div class="messages-container">
+                <!-- 2. WITHDRAW & ERRORS -->
+                <div class="phone-screen">
+                    <div class="screen-header">Workflow & Alerts</div>
+                    <div class="chat-area">
+                        <div class="msg bot" onclick="openEditModal('withdraw_menu_title')">
+                            <div class="edit-hint">withdraw_menu_title</div>
+                            <div class="bubble">${val('withdraw_menu_title')}<div class="tg-kbd"><div class="tg-btn">bKash</div><div class="tg-btn">Nagad</div></div></div>
+                        </div>
                         
-                        <!-- 1. START FLOW -->
-                        <div class="msg-row sent"><div class="bubble"><div class="msg-text">/start</div><div class="time">12:00</div></div></div>
-                        
-                        <div class="msg-row received" onclick="openEditModal('main_menu_title')">
-                            <div class="bubble">
-                                <div class="edit-btn">✎</div>
-                                <span class="key-hint">main_menu_title</span>
-                                <div class="msg-text">${val('main_menu_title')}</div>
-                                <div class="inline-kbd">
-                                    <div class="ik-btn">💰 Deposit</div><div class="ik-btn">💸 Withdraw</div>
-                                </div>
-                                <div class="time">12:00</div>
-                            </div>
+                        <div class="msg bot" onclick="openEditModal('wd_success_msg')">
+                            <div class="edit-hint">wd_success_msg</div><div class="bubble">${val('wd_success_msg')}</div>
                         </div>
 
-                        <!-- 2. DEPOSIT FLOW -->
-                        <div class="msg-row sent"><div class="bubble"><div class="msg-text">Deposit</div><div class="time">12:01</div></div></div>
-
-                        <div class="msg-row received" onclick="openEditModal('dep_menu_title')">
-                            <div class="bubble">
-                                <div class="edit-btn">✎</div>
-                                <span class="key-hint">dep_menu_title</span>
-                                <div class="msg-text">${val('dep_menu_title')}</div>
-                                <div class="inline-kbd">
-                                    <div class="ik-btn">Manual</div><div class="ik-btn">Screenshot</div>
-                                </div>
-                                <div class="time">12:01</div>
-                            </div>
+                        <div class="msg bot error-bubble" onclick="openEditModal('err_not_found')">
+                            <div class="edit-hint">err_not_found</div><div class="bubble">${val('err_not_found')}</div>
                         </div>
 
-                        <!-- 3. MANUAL STEPS -->
-                        <div class="msg-row received" onclick="openEditModal('manual_entry_start')">
-                            <div class="bubble">
-                                <div class="edit-btn">✎</div>
-                                <span class="key-hint">manual_entry_start</span>
-                                <div class="msg-text">${val('manual_entry_start')}</div>
-                                <div class="time">12:01</div>
-                            </div>
+                        <div class="msg bot error-bubble" onclick="openEditModal('err_scan_fail')">
+                            <div class="edit-hint">err_scan_fail</div><div class="bubble">${val('err_scan_fail')}</div>
                         </div>
 
-                        <div class="msg-row received" onclick="openEditModal('m_step_1')">
-                            <div class="bubble">
-                                <div class="edit-btn">✎</div>
-                                <span class="key-hint">m_step_1</span>
-                                <div class="msg-text">${val('m_step_1')}</div>
-                                <div class="time">12:02</div>
-                            </div>
+                        <div class="msg bot" onclick="openEditModal('user_dep_rej')">
+                            <div class="edit-hint">user_dep_rej</div><div class="bubble">${val('user_dep_rej')}</div>
                         </div>
 
-                        <!-- 4. ERRORS -->
-                        <div class="msg-row sent"><div class="bubble"><div class="msg-text">TRX_WRONG_ID</div><div class="time">12:03</div></div></div>
-                        <div class="msg-row received" onclick="openEditModal('err_not_found')">
-                            <div class="bubble">
-                                <div class="edit-btn">✎</div>
-                                <span class="key-hint">err_not_found</span>
-                                <div class="msg-text">${val('err_not_found')}</div>
-                                <div class="time">12:03</div>
-                            </div>
+                        <div class="msg bot" onclick="openEditModal('user_wd_paid')">
+                            <div class="edit-hint">user_wd_paid</div><div class="bubble">${val('user_wd_paid')}</div>
                         </div>
-
-                        <!-- 5. VERIFICATION -->
-                        <div class="msg-row received" onclick="openEditModal('verifying_status')">
-                            <div class="bubble">
-                                <div class="edit-btn">✎</div>
-                                <span class="key-hint">verifying_status</span>
-                                <div class="msg-text">${val('verifying_status')}</div>
-                                <div class="time">12:04</div>
-                            </div>
-                        </div>
-
-                        <!-- 6. FINAL SUCCESS -->
-                        <div class="msg-row received" onclick="openEditModal('user_dep_success')">
-                            <div class="bubble">
-                                <div class="edit-btn">✎</div>
-                                <span class="key-hint">user_dep_success</span>
-                                <div class="msg-text">${val('user_dep_success')}</div>
-                                <div class="time">12:05</div>
-                            </div>
-                        </div>
-
                     </div>
                 </div>
+
+                <!-- 3. PUBLIC GROUP & ADMIN -->
+                <div class="phone-screen">
+                    <div class="screen-header">Group & Admin Panel</div>
+                    <div class="chat-area">
+                        <div class="msg bot" onclick="openEditModal('group_dep_sub')">
+                            <div class="edit-hint">group_dep_sub</div><div class="bubble" style="background:#f1f1f1">${val('group_dep_sub')}<br>ID: PLAYER123</div>
+                        </div>
+
+                        <div class="msg bot" onclick="openEditModal('group_dep_done')">
+                            <div class="edit-hint">group_dep_done</div><div class="bubble" style="background:#f1f1f1">${val('group_dep_done')}</div>
+                        </div>
+
+                        <div class="msg bot" onclick="openEditModal('group_wd_req')">
+                            <div class="edit-hint">group_wd_req</div><div class="bubble" style="background:#f1f1f1">${val('group_wd_req')}</div>
+                        </div>
+
+                        <div class="msg bot" onclick="openEditModal('admin_wd_req')">
+                            <div class="edit-hint">admin_wd_req</div>
+                            <div class="bubble admin-alert">
+                                <b>Admin Alert:</b><br>${val('admin_wd_req')}
+                                <div class="tg-kbd"><div class="tg-btn" style="color:green">✅ DONE</div><div class="tg-btn" style="color:red">❌ REJECT</div></div>
+                            </div>
+                        </div>
+
+                        <div class="msg bot" onclick="openEditModal('group_wd_fail')">
+                            <div class="edit-hint">group_wd_fail</div><div class="bubble" style="background:#f1f1f1">${val('group_wd_fail')}</div>
+                        </div>
+                    </div>
+                </div>
+
             </div>
 
-            <!-- Modal -->
+            <!-- Modal for Editing -->
             <div class="modal fade" id="editModal" tabindex="-1">
                 <div class="modal-dialog modal-dialog-centered">
                     <form class="modal-content shadow-lg border-0" action="/admin/settings/update" method="POST">
-                        <div class="modal-header border-0 bg-light">
-                            <h6 class="modal-title fw-bold" id="titleText">Edit Telegram Message</h6>
+                        <div class="modal-header">
+                            <h6 class="modal-title fw-bold" id="keyLabel">Edit Message</h6>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
-                            <input type="hidden" name="key" id="inputKey">
-                            <textarea name="value" id="inputValue" class="form-control" rows="8" style="font-size:0.95rem; background:#fdfdfd"></textarea>
+                            <input type="hidden" name="key" id="modalKey">
+                            <textarea name="value" id="modalValue" class="form-control" rows="8" style="font-size: 0.9rem; font-family: monospace;"></textarea>
+                            <div class="form-text mt-2 small">Use *bold* or _italic_ if your bot supports Markdown.</div>
                         </div>
                         <div class="modal-footer border-0">
-                            <button type="submit" class="btn btn-primary w-100 rounded-pill py-2">Save Message</button>
+                            <button type="submit" class="btn btn-primary w-100 rounded-pill py-2">Update Bot Content</button>
                         </div>
                     </form>
                 </div>
@@ -260,12 +229,12 @@ app.get('/admin/settings', async (req, res) => {
 
             <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
             <script>
-                const data = ${JSON.stringify(settingsMap)};
+                const settings = ${JSON.stringify(settingsMap)};
                 function openEditModal(key) {
-                    const item = data[key];
-                    document.getElementById('inputKey').value = key;
-                    document.getElementById('titleText').innerText = "Database Key: " + key;
-                    document.getElementById('inputValue').value = item ? item.value : "";
+                    const data = settings[key];
+                    document.getElementById('modalKey').value = key;
+                    document.getElementById('keyLabel').innerText = "Database Key: " + key;
+                    document.getElementById('modalValue').value = data ? data.value : "";
                     new bootstrap.Modal(document.getElementById('editModal')).show();
                 }
             </script>
