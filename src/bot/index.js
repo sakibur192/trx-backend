@@ -22,8 +22,6 @@ const maskNumber = (num) => {
 
 bot.setMyCommands([
   { command: "start", description: "Start the bot" },
-  { command: "deposit", description: "Make a deposit" },
-  { command: "withdraw", description: "Withdraw money" }
 ]);
 
 bot.setChatMenuButton({
