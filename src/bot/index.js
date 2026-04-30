@@ -98,7 +98,7 @@ async function startVerificationRetry(chatId, data) {
 
     if (dupCheck.rows.length > 0) {
         const dupMsg = await bot.sendMessage(chatId, "⚠️ *Duplicate Transaction!*\nThis TRX ID has already been submitted or processed.");
-        bot.sendMessage(GROUP_ID, `🚫 *Duplicate Blocked*\nID: \`${playerId}\`\nTRX: \`${trx_id}\``, { parse_mode: "Markdown" });
+        // bot.sendMessage(GROUP_ID, `🚫 *Duplicate Blocked*\nID: \`${playerId}\`\nTRX: \`${trx_id}\``, { parse_mode: "Markdown" });
         
         // Auto-delete user warning after 1 minute
         setTimeout(() => bot.deleteMessage(chatId, dupMsg.message_id).catch(() => {}), 60000);
@@ -106,7 +106,7 @@ async function startVerificationRetry(chatId, data) {
     }
 
     // 2. INITIAL NOTIFICATION
-    bot.sendMessage(GROUP_ID, `🔔 *Deposit Initiated*\n👤 ID: \`${playerId}\`\n💰 Amt: ${amount}\n📱 Num: ${maskNumber(senderNum)}`, { parse_mode: "Markdown" });
+    // bot.sendMessage(GROUP_ID, `🔔 *Deposit Initiated*\n👤 ID: \`${playerId}\`\n💰 Amt: ${amount}\n📱 Num: ${maskNumber(senderNum)}`, { parse_mode: "Markdown" });
 
     let match = null;
     for (let i = 1; i <= 3; i++) {
@@ -126,14 +126,14 @@ async function startVerificationRetry(chatId, data) {
     if (!match) {
         // NOT FOUND CASE
         const nfMsg = await bot.sendMessage(chatId, "❌ *Transaction Not Found.*\nWe couldn't verify this TRX. Please check details or try again later.");
-        bot.sendMessage(GROUP_ID, `❌ *Verification Failed*\nID: \`${playerId}\`\nTRX: \`${trx_id}\` (Not Found)`, { parse_mode: "Markdown" });
+        // bot.sendMessage(GROUP_ID, `❌ *Verification Failed*\nID: \`${playerId}\`\nTRX: \`${trx_id}\` (Not Found)`, { parse_mode: "Markdown" });
         
         // Auto-delete after 5 minutes
         setTimeout(() => bot.deleteMessage(chatId, nfMsg.message_id).catch(() => {}), 300000);
     } else {
         // MATCH FOUND - ASK FOR ADMIN APPROVAL
         await bot.sendMessage(chatId, "⏳ *Payment Verified!*\nPlease wait while the Admin performs the final approval.");
-        bot.sendMessage(GROUP_ID, `✅ *TRX Matched*\nID: \`${playerId}\`\nStatus: Awaiting Admin Approval...`, { parse_mode: "Markdown" });
+        bot.sendMessage(GROUP_ID, `✅ *Deposit Request submitted*\nID: \`${playerId}\`\nStatus: Awaiting Admin Approval...`, { parse_mode: "Markdown" });
 
         // SEND TO ADMIN
         bot.sendMessage(ADMIN_ID, 
@@ -279,16 +279,6 @@ bot.on('message', async (msg) => {
             }
         });
     }
-
-
-
-
-
-
-
-
-
-
 
 
 
