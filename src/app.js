@@ -7,7 +7,7 @@ const app = express();
 // Middleware
 // =======================
 app.use(express.json());
-
+app.use(express.urlencoded({ extended: true }));
 // =======================
 // DB HEALTH CHECK (IMPORTANT)
 // =======================
