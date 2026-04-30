@@ -46,14 +46,11 @@ app.use('/api', routes);
 app.get('/admin/settings', async (req, res) => {
     try {
         const result = await db.query("SELECT * FROM bot_settings ORDER BY category, label");
-        
-        // Group data by category for the modal or reference
         const settingsMap = {};
         result.rows.forEach(row => { settingsMap[row.key] = row; });
 
-        // Helper to get a value or placeholder
-        const val = (key) => (settingsMap[key] ? settingsMap[key].value.replace(/\n/g, '<br>') : `[Missing ${key}]`);
-        const label = (key) => (settingsMap[key] ? settingsMap[key].label : key);
+        // Helper to get value or fallback
+        const val = (key) => (settingsMap[key] ? settingsMap[key].value.replace(/\n/g, '<br>') : `<span class="text-danger">[Missing ${key}]</span>`);
 
         res.send(`
             <!DOCTYPE html>
@@ -61,118 +58,116 @@ app.get('/admin/settings', async (req, res) => {
             <head>
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Bot Preview Dashboard</title>
+                <title>Visual Bot Manager</title>
                 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
                 <style>
-                    body { background-color: #e7ebf0; font-family: -apple-system, system-ui, sans-serif; padding-top: 60px; }
+                    :root { --tg-blue: #3390ec; --tg-bg: #8da6ba; --tg-admin: #212121; }
+                    body { background-color: #f4f7f9; font-family: -apple-system, system-ui, sans-serif; }
+                    .navbar { background: #517da2 !important; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
                     
-                    /* Common Chat UI */
-                    .preview-column { height: 90vh; overflow-y: auto; padding: 20px; border-right: 1px solid #d1d9e0; }
-                    .chat-header { font-weight: bold; padding: 10px; background: #fff; border-radius: 10px 10px 0 0; border-bottom: 1px solid #eee; text-align: center; font-size: 0.9rem; }
-                    .chat-bg { background: #8da6ba url("https://www.transparenttextures.com/patterns/cubes.png"); border-radius: 0 0 10px 10px; padding: 15px; min-height: 400px; }
+                    /* Viewport Columns */
+                    .preview-col { height: calc(100vh - 60px); overflow-y: auto; padding: 20px; border-right: 1px solid #ddd; }
+                    .col-title { font-weight: bold; font-size: 0.8rem; color: #555; text-transform: uppercase; margin-bottom: 15px; text-align: center; letter-spacing: 1px; }
                     
-                    /* Message Bubbles */
-                    .msg { margin-bottom: 15px; display: flex; flex-direction: column; max-width: 85%; }
-                    .msg.bot { align-items: flex-start; }
-                    .msg.user { align-items: flex-end; margin-left: auto; }
-                    
+                    /* Chat Styles */
+                    .chat-window { background: var(--tg-bg) url("https://www.transparenttextures.com/patterns/cubes.png"); border-radius: 12px; padding: 15px; min-height: 500px; margin-bottom: 30px; }
+                    .msg { margin-bottom: 12px; display: flex; flex-direction: column; align-items: flex-start; }
                     .bubble { 
-                        padding: 8px 12px; border-radius: 12px; position: relative; font-size: 0.9rem; 
-                        box-shadow: 0 1px 2px rgba(0,0,0,0.1); cursor: pointer; transition: transform 0.2s;
+                        background: white; padding: 8px 12px; border-radius: 12px 12px 12px 2px; 
+                        font-size: 0.9rem; max-width: 90%; cursor: pointer; transition: 0.2s;
+                        border: 2px solid transparent; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
                     }
-                    .bubble:hover { transform: scale(1.02); border: 2px solid #3390ec; }
-                    .bot .bubble { background: white; border-radius: 12px 12px 12px 2px; }
-                    .user .bubble { background: #effdde; border-radius: 12px 12px 2px 12px; }
+                    .bubble:hover { border-color: var(--tg-blue); transform: translateY(-2px); }
+                    .key-tag { font-size: 0.65rem; color: var(--tg-blue); font-weight: bold; display: block; border-bottom: 1px solid #eee; margin-bottom: 4px; }
                     
-                    .btn-group-dummy { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
-                    .dummy-btn { 
-                        background: rgba(255,255,255,0.8); border: 1px solid #3390ec; color: #3390ec;
-                        border-radius: 5px; padding: 3px 10px; font-size: 0.75rem; pointer-events: none;
-                    }
-
-                    .admin-notify { background: #fff !important; border-left: 4px solid #3390ec !important; border-radius: 4px !important; }
-                    .edit-tag { font-size: 0.7rem; color: #3390ec; font-weight: bold; display: block; margin-bottom: 2px; }
+                    /* Admin/Status specific */
+                    .admin-bg { background: var(--tg-admin); }
+                    .admin-bubble { border-left: 4px solid var(--tg-blue); border-radius: 4px !important; }
+                    .btn-preview { border: 1px solid var(--tg-blue); color: var(--tg-blue); font-size: 0.7rem; padding: 2px 8px; border-radius: 4px; margin-top: 5px; display: inline-block; margin-right: 4px; }
+                    
+                    /* Scrollbar */
+                    ::-webkit-scrollbar { width: 5px; }
+                    ::-webkit-scrollbar-thumb { background: #bbb; border-radius: 10px; }
                 </style>
             </head>
             <body>
-                <nav class="navbar fixed-top navbar-dark bg-primary shadow-sm">
+                <nav class="navbar navbar-dark sticky-top">
                     <div class="container-fluid">
-                        <span class="navbar-brand">Visual Bot Configurator (Click any bubble to Edit)</span>
+                        <span class="navbar-brand mb-0 h1">🤖 Bot Interface Manager</span>
+                        <div class="d-flex text-white small">Click any bubble to edit text</div>
                     </div>
                 </nav>
 
                 <div class="container-fluid">
                     <div class="row">
                         
-                        <!-- COLUMN 1: USER DIRECT MESSAGE -->
-                        <div class="col-md-4 preview-column">
-                            <div class="chat-header">User DM (Private Chat)</div>
-                            <div class="chat-bg">
-                                <div class="msg user"><div class="bubble">/start</div></div>
-                                <div class="msg bot" onclick="openEditModal('main_menu_title')">
-                                    <div class="bubble">
-                                        <span class="edit-tag">main_menu_title</span>
-                                        ${val('main_menu_title')}
-                                        <div class="btn-group-dummy">
-                                            <div class="dummy-btn">💰 Deposit</div>
-                                            <div class="dummy-btn">💸 Withdraw</div>
-                                        </div>
-                                    </div>
+                        <!-- COLUMN 1: USER FLOW (THE BOT'S FACE) -->
+                        <div class="col-md-4 preview-col">
+                            <div class="col-title">User Interaction Flow</div>
+                            <div class="chat-window">
+                                <!-- Menu Section -->
+                                <div class="msg" onclick="openEditModal('main_menu_title')">
+                                    <div class="bubble"><span class="key-tag">main_menu_title</span> ${val('main_menu_title')} <div class="btn-preview">Deposit</div><div class="btn-preview">Withdraw</div></div>
                                 </div>
-
-                                <div class="msg user"><div class="bubble">Click: Deposit</div></div>
-                                <div class="msg bot" onclick="openEditModal('dep_menu_title')">
-                                    <div class="bubble">
-                                        <span class="edit-tag">dep_menu_title</span>
-                                        ${val('dep_menu_title')}
-                                        <div class="btn-group-dummy">
-                                            <div class="dummy-btn">📸 Screenshot</div>
-                                            <div class="dummy-btn">⌨️ Manual</div>
-                                        </div>
-                                    </div>
+                                <div class="msg" onclick="openEditModal('dep_menu_title')">
+                                    <div class="bubble"><span class="key-tag">dep_menu_title</span> ${val('dep_menu_title')} <div class="btn-preview">Screenshot</div><div class="btn-preview">Manual</div></div>
                                 </div>
+                                <div class="msg" onclick="openEditModal('manual_entry_start')">
+                                    <div class="bubble"><span class="key-tag">manual_entry_start</span> ${val('manual_entry_start')}</div>
+                                </div>
+                                
+                                <!-- Process Section -->
+                                <div class="msg" onclick="openEditModal('m_step_1')"><div class="bubble"><span class="key-tag">m_step_1</span> ${val('m_step_1')}</div></div>
+                                <div class="msg" onclick="openEditModal('m_step_2')"><div class="bubble"><span class="key-tag">m_step_2</span> ${val('m_step_2')}</div></div>
+                                <div class="msg" onclick="openEditModal('m_step_3')"><div class="bubble"><span class="key-tag">m_step_3</span> ${val('m_step_3')}</div></div>
+                                
+                                <!-- Scanning Section -->
+                                <div class="msg" onclick="openEditModal('ocr_status')"><div class="bubble"><span class="key-tag">ocr_status</span> ${val('ocr_status')}</div></div>
+                                <div class="msg" onclick="openEditModal('ocr_success')"><div class="bubble"><span class="key-tag">ocr_success</span> ${val('ocr_success')}</div></div>
+                                <div class="msg" onclick="openEditModal('verifying_status')"><div class="bubble"><span class="key-tag">verifying_status</span> ${val('verifying_status')}</div></div>
+                                
+                                <!-- Final User Alerts -->
+                                <div class="msg" onclick="openEditModal('user_dep_success')"><div class="bubble"><span class="key-tag">user_dep_success</span> ${val('user_dep_success')}</div></div>
+                                <div class="msg" onclick="openEditModal('user_dep_rej')"><div class="bubble"><span class="key-tag">user_dep_rej</span> ${val('user_dep_rej')}</div></div>
+                                <div class="msg" onclick="openEditModal('user_wd_paid')"><div class="bubble"><span class="key-tag">user_wd_paid</span> ${val('user_wd_paid')}</div></div>
+                                <div class="msg" onclick="openEditModal('user_wd_rej')"><div class="bubble"><span class="key-tag">user_wd_rej</span> ${val('user_wd_rej')}</div></div>
                             </div>
                         </div>
 
-                        <!-- COLUMN 2: PUBLIC GROUP/CHANNEL -->
-                        <div class="col-md-4 preview-column">
-                            <div class="chat-header">Public Updates (Group/Channel)</div>
-                            <div class="chat-bg" style="background-color: #517da2;">
-                                <div class="msg bot" onclick="openEditModal('group_dep_done')">
-                                    <div class="bubble">
-                                        <span class="edit-tag">group_dep_done</span>
-                                        ${val('group_dep_done')}<br>
-                                        🆔 ID: PLAYER123<br>
-                                        💰 Status: Completed Successfully!
-                                    </div>
+                        <!-- COLUMN 2: ERROR & SYSTEM ALERTS -->
+                        <div class="col-md-4 preview-col">
+                            <div class="col-title">Error & System Alerts</div>
+                            <div class="chat-window" style="background-color: #728fa3;">
+                                <div class="msg" onclick="openEditModal('err_duplicate')"><div class="bubble"><span class="key-tag">err_duplicate</span> ${val('err_duplicate')}</div></div>
+                                <div class="msg" onclick="openEditModal('err_not_found')"><div class="bubble"><span class="key-tag">err_not_found</span> ${val('err_not_found')}</div></div>
+                                <div class="msg" onclick="openEditModal('err_scan_fail')"><div class="bubble"><span class="key-tag">err_scan_fail</span> ${val('err_scan_fail')}</div></div>
+                                <div class="msg" onclick="openEditModal('err_invalid_format')"><div class="bubble"><span class="key-tag">err_invalid_format</span> ${val('err_invalid_format')}</div></div>
+                                <div class="msg" onclick="openEditModal('err_ocr_gen')"><div class="bubble"><span class="key-tag">err_ocr_gen</span> ${val('err_ocr_gen')}</div></div>
+                                
+                                <div class="msg mt-4" onclick="openEditModal('withdraw_menu_title')">
+                                    <div class="bubble"><span class="key-tag">withdraw_menu_title</span> ${val('withdraw_menu_title')} <div class="btn-preview">bKash</div><div class="btn-preview">Nagad</div></div>
                                 </div>
-
-                                <div class="msg bot" onclick="openEditModal('group_wd_done')">
-                                    <div class="bubble">
-                                        <span class="edit-tag">group_wd_done</span>
-                                        ${val('group_wd_done')}<br>
-                                        🆔 ID: PLAYER123<br>
-                                        💰 Amount: 500 BDT
-                                    </div>
-                                </div>
+                                <div class="msg" onclick="openEditModal('wd_success_msg')"><div class="bubble"><span class="key-tag">wd_success_msg</span> ${val('wd_success_msg')}</div></div>
                             </div>
                         </div>
 
-                        <!-- COLUMN 3: ADMIN NOTIFICATIONS -->
-                        <div class="col-md-4 preview-column">
-                            <div class="chat-header">Admin Control Panel (Bot -> Admin)</div>
-                            <div class="chat-bg" style="background: #212121;">
-                                <div class="msg bot" onclick="openEditModal('admin_wd_req')">
-                                    <div class="bubble admin-notify">
-                                        <span class="edit-tag">admin_wd_req</span>
-                                        ${val('admin_wd_req')}<br>
-                                        👤 User: 8433649028<br>
-                                        💰 Amt: 500
-                                        <div class="btn-group-dummy">
-                                            <div class="dummy-btn" style="background:#d4edda">✅ DONE</div>
-                                            <div class="dummy-btn" style="background:#f8d7da">❌ REJECT</div>
-                                        </div>
-                                    </div>
+                        <!-- COLUMN 3: GROUP & ADMIN PREVIEW -->
+                        <div class="col-md-4 preview-col">
+                            <div class="col-title">Group & Admin Notifications</div>
+                            <div class="chat-window admin-bg">
+                                <!-- Group Updates -->
+                                <div class="msg" onclick="openEditModal('group_dep_sub')"><div class="bubble"><span class="key-tag">group_dep_sub</span> ${val('group_dep_sub')}</div></div>
+                                <div class="msg" onclick="openEditModal('group_wd_req')"><div class="bubble"><span class="key-tag">group_wd_req</span> ${val('group_wd_req')}</div></div>
+                                <div class="msg" onclick="openEditModal('group_dep_done')"><div class="bubble"><span class="key-tag">group_dep_done</span> ${val('group_dep_done')}</div></div>
+                                <div class="msg" onclick="openEditModal('group_wd_done')"><div class="bubble"><span class="key-tag">group_wd_done</span> ${val('group_wd_done')}</div></div>
+                                <div class="msg" onclick="openEditModal('group_wd_fail')"><div class="bubble"><span class="key-tag">group_wd_fail</span> ${val('group_wd_fail')}</div></div>
+
+                                <!-- Admin Requests -->
+                                <div class="msg mt-4" onclick="openEditModal('admin_dep_req')">
+                                    <div class="bubble admin-bubble"><span class="key-tag">admin_dep_req</span> ${val('admin_dep_req')}<br><small class="text-muted">Approval buttons appear here</small></div>
+                                </div>
+                                <div class="msg" onclick="openEditModal('admin_wd_req')">
+                                    <div class="bubble admin-bubble"><span class="key-tag">admin_wd_req</span> ${val('admin_wd_req')}<br><small class="text-muted">Payment buttons appear here</small></div>
                                 </div>
                             </div>
                         </div>
@@ -180,42 +175,35 @@ app.get('/admin/settings', async (req, res) => {
                     </div>
                 </div>
 
-                <!-- Reusable Edit Modal -->
+                <!-- Modal -->
                 <div class="modal fade" id="editModal" tabindex="-1">
-                  <div class="modal-dialog modal-dialog-centered">
-                    <form class="modal-content" action="/admin/settings/update" method="POST">
-                      <div class="modal-header">
-                        <h5 class="modal-title" id="modalTitle">Edit Configuration</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                      </div>
-                      <div class="modal-body">
-                        <input type="hidden" name="key" id="modalKey">
-                        <div class="mb-3">
-                            <label id="modalLabelText" class="form-label fw-bold text-primary"></label>
-                            <textarea name="value" id="modalValue" class="form-control" rows="6" required></textarea>
-                            <div class="form-text mt-2">HTML/Markdown is supported depending on your bot logic.</div>
-                        </div>
-                      </div>
-                      <div class="modal-footer">
-                        <button type="submit" class="btn btn-primary w-100">Apply Changes</button>
-                      </div>
-                    </form>
-                  </div>
+                    <div class="modal-dialog modal-dialog-centered">
+                        <form class="modal-content" action="/admin/settings/update" method="POST">
+                            <div class="modal-header border-0">
+                                <h6 class="modal-title fw-bold" id="titleText">Edit Message</h6>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <input type="hidden" name="key" id="inputKey">
+                                <label class="form-label small fw-bold text-muted" id="labelName"></label>
+                                <textarea name="value" id="inputValue" class="form-control" rows="6" style="font-family: monospace; font-size: 0.9rem;"></textarea>
+                            </div>
+                            <div class="modal-footer border-0">
+                                <button type="submit" class="btn btn-primary w-100 rounded-pill">Update Database</button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
 
                 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
                 <script>
-                    const settingsData = ${JSON.stringify(settingsMap)};
-
+                    const data = ${JSON.stringify(settingsMap)};
                     function openEditModal(key) {
-                        const item = settingsData[key];
-                        if(!item) return;
-
-                        document.getElementById('modalKey').value = key;
-                        document.getElementById('modalTitle').innerText = 'Editing: ' + key;
-                        document.getElementById('modalLabelText').innerText = item.label;
-                        document.getElementById('modalValue').value = item.value;
-                        
+                        const item = data[key];
+                        document.getElementById('inputKey').value = key;
+                        document.getElementById('titleText').innerText = "Key: " + key;
+                        document.getElementById('labelName').innerText = item ? item.label : "Edit Value";
+                        document.getElementById('inputValue').value = item ? item.value : "";
                         new bootstrap.Modal(document.getElementById('editModal')).show();
                     }
                 </script>
