@@ -187,7 +187,19 @@ bot.on('message', async (msg) => {
         startVerificationRetry(chatId, finalData);
     }
     else if (state.step === 'GET_ID_SS') {
-        startVerificationRetry(chatId, { trx_id: state.trx, amount: state.amt, playerId: text, senderNum: "From Photo", method: 'Screenshot' });
+        // 1. Send the instant "Verifying" message
+        bot.sendMessage(chatId, "⏳ *Verifying your payment... please wait.*", { parse_mode: "Markdown" });
+
+        // 2. Pass the data to your verification function
+        startVerificationRetry(chatId, { 
+            trx_id: state.trx, 
+            amount: state.amt, 
+            playerId: text, 
+            senderNum: "From Photo", 
+            method: 'Screenshot' 
+        });
+
+        // 3. Clean up the user state
         delete userState[chatId];
     }
 });
@@ -205,27 +217,16 @@ bot.on("callback_query", async (query) => {
             parse_mode: "Markdown",
             reply_markup: { inline_keyboard: [[{ text: "📸 Screenshot", callback_data: "dep_ss" }, { text: "⌨️ Manual", callback_data: "dep_manual" }]] }
         });
-    } else if (data === "dep_ss") {
+    } 
+    else if (data === "dep_ss") {
         userState[chatId] = { step: 'WAITING_PHOTO' };
         bot.sendMessage(chatId, "📸 *Send your payment screenshot now:*");
-    } else if (data === "dep_manual") {
+    } 
+    else if (data === "dep_manual") {
         userState[chatId] = { step: 'M_TRX' };
         bot.sendMessage(chatId, "⌨️ *Manual Entry*\nStep 1: Enter **Transaction ID**:");
-    } else if (data.startsWith("approve_")) {
-        const [_, userId, trxId, pId, sNum] = data.split("_");
-        await db.query("UPDATE deposit_history SET status = 'success' WHERE trx_id = $1", [trxId]);
-        bot.sendMessage(userId, "✅ *Deposit Successful!* Balance updated.", { parse_mode: "Markdown" });
-        bot.sendMessage(GROUP_ID, `✅ *Deposit Success*\n🆔 ID: \`${pId}\`\n💰 Status: Success!`, { parse_mode: "Markdown" });
-    } else if (data.startsWith("reject_")) {
-        const [_, userId, pId] = data.split("_");
-        bot.sendMessage(userId, "❌ *Deposit Rejected.* Contact support.");
-    }
-
-
-
-
-
-if (data.startsWith("approve_")) {
+    } 
+    else if (data.startsWith("approve_")) {
         const [_, userId, trxId, pId] = data.split("_");
         
         await db.query("UPDATE deposit_history SET status = 'success' WHERE trx_id = $1", [trxId]);
@@ -234,9 +235,8 @@ if (data.startsWith("approve_")) {
         bot.sendMessage(GROUP_ID, `💎 *Deposit Success*\n🆔 ID: \`${pId}\`\n💰 Status: Completed Successfully!`, { parse_mode: "Markdown" });
         
         bot.editMessageText(`✅ Approved: ${pId} (${trxId})`, { chat_id: ADMIN_ID, message_id: query.message.message_id });
-    }
-
-    if (data.startsWith("reject_")) {
+    } 
+    else if (data.startsWith("reject_")) {
         const [_, userId, pId] = data.split("_");
         
         bot.sendMessage(userId, "❌ *Deposit Rejected.*\nYour payment verification was unsuccessful. Contact support.");
