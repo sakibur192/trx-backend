@@ -208,13 +208,9 @@ bot.on('message', async (msg) => {
     else if (state.step === 'M_AMT') {
         userState[chatId] = { ...state, step: 'M_ID', amt: text };
         bot.sendMessage(chatId, "Step 3: Enter **Player ID**:");
-    } 
+    }  
     else if (state.step === 'M_ID') {
-        userState[chatId] = { ...state, step: 'M_NUM', pId: text };
-        bot.sendMessage(chatId, "Step 4: Enter **Sender Phone Number**:");
-    } 
-    else if (state.step === 'M_NUM') {
-        const finalData = { trx_id: state.trx, amount: state.amt, playerId: state.pId, senderNum: text, method: 'Manual' };
+        const finalData = { trx_id: state.trx, amount: state.amt, playerId: state.pId, senderNum: "text", method: 'Manual' };
         delete userState[chatId];
         bot.sendMessage(chatId, "⏳ Verifying... please wait.");
         startVerificationRetry(chatId, finalData);
