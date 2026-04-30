@@ -46,34 +46,51 @@ app.get('/admin/settings', async (req, res) => {
     try {
         const result = await db.query("SELECT * FROM bot_settings ORDER BY category, label");
         
-        // Convert rows to a lookup object for easy access
-        const settings = {};
-        result.rows.forEach(row => { settings[row.key] = row; });
+        // Grouping data by category
+        const categories = {};
+        result.rows.forEach(row => {
+            if (!categories[row.category]) categories[row.category] = [];
+            categories[row.category].push(row);
+        });
 
-        // Helper to render a bot message bubble
-        const botMsg = (key, label) => {
-            const s = settings[key];
-            if (!s) return ''; // Skip if key missing in DB
-            return `
-                <div class="msg-group bot">
-                    <div class="bubble shadow-sm">
-                        <div class="msg-label">${label || s.label}</div>
+        // Mapping which keys represent "User Choices" to push them to the right side
+        const userSideKeys = [
+            'dep_ss', 'dep_manual', 'w_bkash', 'w_nagad', 'w_rocket', 'w_upay', 
+            'manual_entry_start', 'ss_start', 'withdraw'
+        ];
+
+        let sectionsHtml = '';
+        let sidebarHtml = '';
+
+        for (const cat in categories) {
+            const catId = cat.replace(/\s+/g, '_').toLowerCase();
+            sidebarHtml += `<li><a href="#cat-${catId}">${cat.toUpperCase()}</a></li>`;
+            
+            sectionsHtml += `
+                <div class="chat-date" id="cat-${catId}">
+                    <span>${cat.toUpperCase()} (${categories[cat].length} KEYS)</span>
+                </div>`;
+            
+            sectionsHtml += categories[cat].map(s => {
+                const isUserSide = userSideKeys.some(k => s.key.includes(k));
+                const sideClass = isUserSide ? 'msg-user' : 'msg-bot';
+                
+                return `
+                <div class="message-wrapper ${sideClass}">
+                    <div class="message-bubble shadow-sm">
+                        <div class="msg-label">${s.label}</div>
                         <div class="msg-content" id="content-${s.key}">${s.value.replace(/\n/g, '<br>')}</div>
                         <div class="msg-footer">
                             <button class="btn-edit" onclick="openEditModal('${s.key}', '${s.label}')">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                                Edit
+                                Edit <code>${s.key}</code>
                             </button>
                         </div>
                     </div>
-                </div>`;
-        };
-
-        // Helper for dummy user messages
-        const userMsg = (text) => `
-            <div class="msg-group user">
-                <div class="bubble shadow-sm">${text}</div>
-            </div>`;
+                </div>
+                `;
+            }).join('');
+        }
 
         res.send(`
             <!DOCTYPE html>
@@ -81,106 +98,87 @@ app.get('/admin/settings', async (req, res) => {
             <head>
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Bot Preview Admin</title>
+                <title>Aesthetic Bot Admin (29 Keys)</title>
                 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
                 <style>
+                    :root { --tg-bg: #8da6ba; --tg-bot: #ffffff; --tg-user: #effdde; --tg-accent: #3390ec; }
                     body { 
-                        background-color: #8da6ba; background-image: url("https://www.transparenttextures.com/patterns/cubes.png");
+                        background-color: var(--tg-bg); background-image: url("https://www.transparenttextures.com/patterns/cubes.png");
                         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                        display: flex;
                     }
-                    .chat-container { max-width: 500px; margin: 20px auto; display: flex; flex-direction: column; }
-                    
-                    .chat-date { text-align: center; margin: 25px 0 15px; }
-                    .chat-date span { background: rgba(0,0,0,0.3); color: white; padding: 4px 15px; border-radius: 20px; font-size: 12px; font-weight: 500; }
-
-                    .msg-group { display: flex; width: 100%; margin-bottom: 8px; }
-                    .msg-group.bot { justify-content: flex-start; }
-                    .msg-group.user { justify-content: flex-end; }
-
-                    .bubble { max-width: 80%; padding: 8px 12px; position: relative; font-size: 0.95rem; line-height: 1.4; }
-                    
-                    /* Bot Style */
-                    .bot .bubble { 
-                        background: #ffffff; color: #000; 
-                        border-radius: 15px 15px 15px 5px; 
+                    /* Sidebar Navigation */
+                    .sidebar {
+                        width: 250px; height: 100vh; background: rgba(255,255,255,0.1); 
+                        backdrop-filter: blur(10px); position: sticky; top: 0; padding: 20px;
+                        border-right: 1px solid rgba(255,255,255,0.1); overflow-y: auto; color: white;
                     }
-                    
-                    /* User Style */
-                    .user .bubble { 
-                        background: #effdde; color: #000; 
-                        border-radius: 15px 15px 5px 15px; 
-                        margin-right: 5px;
-                    }
+                    .sidebar h4 { font-size: 0.9rem; font-weight: bold; margin-bottom: 20px; opacity: 0.8; }
+                    .sidebar ul { list-style: none; padding: 0; }
+                    .sidebar ul li a { color: white; text-decoration: none; font-size: 0.8rem; display: block; padding: 8px 0; opacity: 0.7; transition: 0.3s; }
+                    .sidebar ul li a:hover { opacity: 1; padding-left: 5px; }
 
-                    .msg-label { color: #3390ec; font-weight: bold; font-size: 0.75rem; text-transform: uppercase; margin-bottom: 2px; }
-                    .msg-footer { display: flex; justify-content: flex-end; margin-top: 5px; border-top: 1px solid #f0f0f0; }
-                    .btn-edit { background: none; border: none; color: #3390ec; font-size: 11px; font-weight: bold; padding: 4px 0 0; cursor: pointer; }
+                    .main-content { flex: 1; padding: 20px; height: 100vh; overflow-y: auto; scroll-behavior: smooth; }
+                    .chat-container { max-width: 600px; margin: auto; }
+
+                    .chat-date { text-align: center; margin: 40px 0 20px; clear: both; }
+                    .chat-date span { background: rgba(0,0,0,0.3); color: white; padding: 5px 15px; border-radius: 20px; font-size: 0.7rem; font-weight: 600; }
+
+                    .message-wrapper { display: flex; width: 100%; margin-bottom: 12px; }
+                    .msg-bot { justify-content: flex-start; }
+                    .msg-user { justify-content: flex-end; }
+
+                    .message-bubble { padding: 12px 16px; max-width: 85%; border-radius: 18px; position: relative; border: 1px solid rgba(0,0,0,0.05); }
+                    .msg-bot .message-bubble { background: var(--tg-bot); border-bottom-left-radius: 4px; }
+                    .msg-user .message-bubble { background: var(--tg-user); border-bottom-right-radius: 4px; text-align: right; }
+
+                    .msg-label { color: var(--tg-accent); font-weight: 800; font-size: 0.65rem; text-transform: uppercase; margin-bottom: 5px; }
+                    .msg-content { font-size: 0.92rem; line-height: 1.5; color: #111; }
+                    .msg-footer { margin-top: 10px; padding-top: 6px; border-top: 1px solid rgba(0,0,0,0.04); display: flex; justify-content: flex-end; }
                     
-                    /* Custom Scrollbar */
-                    ::-webkit-scrollbar { width: 6px; }
-                    ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 10px; }
+                    .btn-edit { background: none; border: none; color: var(--tg-accent); font-size: 0.7rem; font-weight: 700; display: flex; align-items: center; gap: 5px; cursor: pointer; }
+                    code { background: #f4f4f4; color: #e83e8c; padding: 2px 4px; border-radius: 4px; }
+
+                    .modal-content { border-radius: 25px; border: none; }
+                    .modal-header { border-bottom: none; padding: 25px 25px 0; }
+                    .modal-footer { border-top: none; padding: 0 25px 25px; }
+                    textarea { border-radius: 15px !important; border: 1px solid #eee !important; background: #f9f9f9 !important; font-size: 0.95rem !important; }
                 </style>
             </head>
             <body>
-                <nav class="navbar sticky-top shadow-sm" style="background: #517da2; color: white;">
-                    <div class="container-fluid justify-content-center">
-                        <span class="navbar-brand mb-0 h1" style="font-size: 16px;">💬 Simulation Mode</span>
-                    </div>
-                </nav>
-
-                <div class="chat-container">
-                    
-                    <div class="chat-date"><span>START FLOW</span></div>
-                    ${userMsg("/start")}
-                    ${botMsg('main_menu_title', 'Main Menu')}
-
-                    <div class="chat-date"><span>DEPOSIT FLOW</span></div>
-                    ${userMsg("💰 Deposit")}
-                    ${botMsg('dep_menu_title')}
-                    ${userMsg("⌨️ Manual")}
-                    ${botMsg('manual_entry_start')}
-                    ${botMsg('m_step_1')}
-                    ${userMsg("TRX123456789")}
-                    ${botMsg('m_step_2')}
-                    ${userMsg("500")}
-                    ${botMsg('m_step_3')}
-                    ${userMsg("Player_01")}
-                    ${botMsg('verifying_status')}
-
-                    <div class="chat-date"><span>WITHDRAW FLOW</span></div>
-                    ${userMsg("💸 Withdraw")}
-                    ${botMsg('withdraw_menu_title')}
-                    ${userMsg("bKash")}
-                    ${userMsg("01700000000")}
-                    ${userMsg("1000")}
-                    ${userMsg("Player_01")}
-                    ${botMsg('wd_success_msg')}
-
-                    <div class="chat-date"><span>NOTIFICATIONS & ALERTS</span></div>
-                    ${botMsg('group_wd_req', 'Group Alert (Withdraw)')}
-                    ${botMsg('admin_wd_req', 'Admin Alert (Withdraw)')}
-                    ${botMsg('user_dep_success', 'User: Success Alert')}
-                    ${botMsg('user_dep_rej', 'User: Rejected Alert')}
-
+                <div class="sidebar d-none d-lg-block">
+                    <h4>📂 CATEGORIES</h4>
+                    <ul>${sidebarHtml}</ul>
+                    <hr style="opacity: 0.2">
+                    <div class="small opacity-50">Total Active Keys: 29</div>
                 </div>
 
-                <!-- Shared Edit Modal -->
-                <div class="modal fade" id="editModal" tabindex="-1">
-                    <div class="modal-dialog modal-dialog-centered">
-                        <form action="/admin/settings/update" method="POST" class="modal-content border-0 shadow" style="border-radius: 20px;">
-                            <div class="modal-header border-0">
-                                <h6 class="modal-title" id="modalLabel" style="color: #3390ec; font-weight: bold;">Edit Content</h6>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                            </div>
-                            <div class="modal-body py-0">
-                                <input type="hidden" name="key" id="modalKey">
-                                <textarea name="value" id="modalValue" class="form-control border-0 bg-light" rows="6" style="resize: none; border-radius: 12px;" required></textarea>
-                            </div>
-                            <div class="modal-footer border-0">
-                                <button type="submit" class="btn btn-primary w-100 rounded-pill" style="background: #3390ec;">Update Message</button>
-                            </div>
-                        </form>
+                <div class="main-content">
+                    <div class="chat-container">
+                        ${sectionsHtml}
                     </div>
+                </div>
+
+                <!-- Edit Modal -->
+                <div class="modal fade" id="editModal" tabindex="-1">
+                  <div class="modal-dialog modal-dialog-centered">
+                    <form action="/admin/settings/update" method="POST" class="modal-content shadow-lg">
+                      <div class="modal-header">
+                        <h5 class="modal-title" id="modalLabel" style="color: var(--tg-accent); font-weight: bold;">Edit Content</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                      </div>
+                      <div class="modal-body px-4">
+                          <input type="hidden" name="key" id="modalKey">
+                          <div class="mb-3">
+                              <label class="small text-muted mb-2">Key: <code id="displayKey"></code></label>
+                              <textarea name="value" id="modalValue" class="form-control" rows="8" required></textarea>
+                          </div>
+                      </div>
+                      <div class="modal-footer">
+                          <button type="submit" class="btn btn-primary w-100 rounded-pill py-2" style="background: var(--tg-accent); border: none; font-weight: 600;">Apply Changes</button>
+                      </div>
+                    </form>
+                  </div>
                 </div>
 
                 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -188,6 +186,7 @@ app.get('/admin/settings', async (req, res) => {
                     function openEditModal(key, label) {
                         const content = document.getElementById('content-' + key).innerText;
                         document.getElementById('modalKey').value = key;
+                        document.getElementById('displayKey').innerText = key;
                         document.getElementById('modalLabel').innerText = label;
                         document.getElementById('modalValue').value = content;
                         new bootstrap.Modal(document.getElementById('editModal')).show();
