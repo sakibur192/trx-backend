@@ -43,7 +43,26 @@ const initDB = async () => {
                 method VARCHAR(20),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+            CREATE TABLE IF NOT EXISTS withdraw_history (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT,
+                player_id VARCHAR(100),
+                method VARCHAR(20),
+                amount NUMERIC(10, 2),
+                wallet_number VARCHAR(50),
+                status VARCHAR(20) DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
         `);
+
+
+
+
+        // Add this inside your initDB() function query block
+
+
+
+
         // Force add column if table already existed without it
         await db.query(`ALTER TABLE deposit_history ADD COLUMN IF NOT EXISTS sender_number VARCHAR(50);`);
         console.log("✅ Database Ready & Schema Verified.");
@@ -202,6 +221,65 @@ bot.on('message', async (msg) => {
         // 3. Clean up the user state
         delete userState[chatId];
     }
+
+
+
+// --- WITHDRAW STATES (New) ---
+    else if (state.step === 'W_NUM') {
+        const phoneRegex = /^(?:\+88|88)?(01[3-9]\d{8})$/;
+        if (!phoneRegex.test(text.replace(/\s/g, ''))) {
+            return bot.sendMessage(chatId, "⚠️ *Invalid Format!*\nEnter a valid number (e.g. 017XXXXXXXX):");
+        }
+        userState[chatId] = { ...state, step: 'W_AMT', walletNum: text };
+        bot.sendMessage(chatId, "💰 Enter the **Amount** to withdraw:");
+    }
+    else if (state.step === 'W_AMT') {
+        if (isNaN(text)) return bot.sendMessage(chatId, "⚠️ Please enter a valid number for amount:");
+        userState[chatId] = { ...state, step: 'W_ID', amt: text };
+        bot.sendMessage(chatId, "🆔 Finally, enter your **Player ID**:");
+    }
+    else if (state.step === 'W_ID') {
+        const { method, walletNum, amt } = state;
+        const pId = text;
+        delete userState[chatId];
+
+        // Save to Database
+        await db.query(
+            "INSERT INTO withdraw_history (user_id, player_id, method, amount, wallet_number, status) VALUES ($1, $2, $3, $4, $5, 'pending')",
+            [chatId, pId, method, amt, walletNum]
+        );
+
+        bot.sendMessage(chatId, "✅ *Withdrawal Request Submitted!*");
+
+        // Notify Group (Masked)
+        bot.sendMessage(GROUP_ID, `💸 *Withdrawal Request*\n🆔 ID: \`${pId}\`\n🏦 Method: ${method}\n📱 Num: ${maskNumber(walletNum)}\n💰 Amt: ${amt}`, { parse_mode: "Markdown" });
+
+        // Notify Admin (Full)
+        bot.sendMessage(ADMIN_ID, `💸 *NEW WITHDRAWAL REQUEST*\n👤 User: \`${chatId}\`\n🆔 Player ID: \`${pId}\`\n🏦 Method: ${method}\n📱 Num: \`${walletNum}\`\n💰 Amt: ${amt}`, {
+            parse_mode: "Markdown",
+            reply_markup: {
+                inline_keyboard: [[
+                    { text: "✅ DONE", callback_data: `wdone_${chatId}_${pId}_${amt}` },
+                    { text: "❌ REJECT", callback_data: `wrej_${chatId}_${pId}` }
+                ]]
+            }
+        });
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 });
 
 // ... (Rest of your Callback and Photo logic)
@@ -244,6 +322,45 @@ bot.on("callback_query", async (query) => {
         
         bot.editMessageText(`❌ Rejected: ${pId}`, { chat_id: ADMIN_ID, message_id: query.message.message_id });
     }
+
+
+
+
+else if (data === "withdraw") {
+        bot.sendMessage(chatId, "💸 *Select Method:*", {
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: "bKash", callback_data: "w_bkash" }, { text: "Nagad", callback_data: "w_nagad" }],
+                    [{ text: "Rocket", callback_data: "w_rocket" }, { text: "Upay", callback_data: "w_upay" }]
+                ]
+            }
+        });
+    }
+    else if (data.startsWith("w_")) {
+        const method = data.split("_")[1].toUpperCase();
+        userState[chatId] = { step: 'W_NUM', method: method };
+        bot.sendMessage(chatId, `📱 You selected **${method}**.\nEnter your Mobile Number:`);
+    }
+    else if (data.startsWith("wdone_")) {
+        const [_, userId, pId, amt] = data.split("_");
+        
+        await db.query("UPDATE withdraw_history SET status = 'success' WHERE user_id = $1 AND player_id = $2 AND status = 'pending'", [userId, pId]);
+        
+        bot.sendMessage(userId, `✅ *Withdrawal Success!*\nYour request for ${amt} BDT has been paid.`, { parse_mode: "Markdown" });
+        bot.sendMessage(GROUP_ID, `✅ *Withdrawal Paid*\n🆔 ID: \`${pId}\`\n💰 Amount: ${amt}\nStatus: Success`, { parse_mode: "Markdown" });
+        bot.editMessageText(`✅ Approved Withdrawal: ${pId}`, { chat_id: ADMIN_ID, message_id: query.message.message_id });
+    }
+    else if (data.startsWith("wrej_")) {
+        const [_, userId, pId] = data.split("_");
+        
+        await db.query("UPDATE withdraw_history SET status = 'rejected' WHERE user_id = $1 AND player_id = $2 AND status = 'pending'", [userId, pId]);
+        
+        bot.sendMessage(userId, "❌ *Withdrawal Rejected.*\nContact support for details.");
+        bot.sendMessage(GROUP_ID, `❌ *Withdrawal Rejected*\n🆔 ID: \`${pId}\`\nStatus: Failed`, { parse_mode: "Markdown" });
+        bot.editMessageText(`❌ Rejected Withdrawal: ${pId}`, { chat_id: ADMIN_ID, message_id: query.message.message_id });
+    }
+
+
 
     bot.answerCallbackQuery(query.id);
 });
