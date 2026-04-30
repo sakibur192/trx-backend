@@ -255,27 +255,59 @@ bot.on('photo', async (msg) => {
     const chatId = msg.chat.id;
     if (userState[chatId]?.step !== 'WAITING_PHOTO') return;
 
-    const loading = await bot.sendMessage(chatId, "⏳ *Reading Image...*");
+    const loading = await bot.sendMessage(chatId, "⏳ *Scanning Receipt with AI...*", { parse_mode: "Markdown" });
+    
     try {
         const file = await bot.getFile(msg.photo[msg.photo.length - 1].file_id);
         const url = `https://api.telegram.org/file/bot${TOKEN}/${file.file_path}`;
-        const { data: { text } } = await Tesseract.recognize(url, 'ben+eng');
+        
+        // Using 'eng+ben' to handle English (Nexus/bKash) and Bengali (bKash/Nagad) text
+        const { data: { text } } = await Tesseract.recognize(url, 'eng+ben');
+        
+        // --- 1. OPTIMIZED TRANSACTION ID LOGIC ---
+        // We look for 8-12 character alphanumeric strings.
+        // We filter out anything that looks like a Bangladesh phone number (starting with 01 or 8801).
+        const allPotentialIds = text.match(/[A-Z0-9]{8,12}/g);
+        const trx = allPotentialIds?.find(id => 
+            !id.startsWith('01') && 
+            !id.startsWith('8801') && 
+            id.length >= 8
+        ) || null;
 
-        const trx = text.match(/[A-Z0-9]{8,12}/)?.[0];
-        const amtMatches = text.match(/(\d{1,3}(?:,\d{3})*(?:\.\d{2}))/g);
-        let amt = amtMatches ? (amtMatches.find(a => !text.includes("Total") || a !== amtMatches[0]) || amtMatches[0]).replace(/,/g, '') : null;
+        // --- 2. OPTIMIZED AMOUNT LOGIC ---
+        // To get the Base Amount (e.g., 3900 instead of 3972), we prioritize specific keywords.
+        let amt = null;
+        
+        // Priority 1: Look for "Amount" or "পরিমাণ" (This hits your 380, 15800, and 3900 targets)
+        const baseAmtMatch = text.match(/(?:পরিমাণ|Amount|TxnAmount)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
+        
+        if (baseAmtMatch) {
+            amt = baseAmtMatch[1].replace(/,/g, '');
+        } else {
+            // Priority 2: Fallback to any decimal number if keywords aren't found (NexusPay popup case)
+            const fallBackAmt = text.match(/([\d,]+\.\d{2})/);
+            amt = fallBackAmt ? fallBackAmt[1].replace(/,/g, '') : null;
+        }
 
-        bot.deleteMessage(chatId, loading.message_id);
+        // Clean up the "Reading" message
+        bot.deleteMessage(chatId, loading.message_id).catch(() => {});
 
+        // --- 3. FINAL VALIDATION & RESPONSE ---
         if (trx && amt) {
             userState[chatId] = { step: 'GET_ID_SS', trx, amt };
-            bot.sendMessage(chatId, `✅ *Scanned:* TRX: \`${trx}\`, Amt: \`${amt}\`\n👉 Enter **Player ID**:`, { parse_mode: "Markdown" });
+            bot.sendMessage(chatId, 
+                `✅ *Scan Complete!*\n━━━━━━━━━━━━━━━\n🔑 *TRX ID:* \`${trx}\` \n💰 *Amount:* \`${amt}\` \n━━━━━━━━━━━━━━━\n👉 Enter your **Player ID** to complete deposit:`, 
+                { parse_mode: "Markdown" }
+            );
         } else {
+            // If the scan failed to find one of the two, switch to manual mode
             userState[chatId] = { step: 'M_TRX' };
-            bot.sendMessage(chatId, "⚠️ OCR Failed. Enter **Transaction ID** manually:");
+            bot.sendMessage(chatId, "⚠️ *Could not read details clearly.*\nPlease type your **Transaction ID** manually:");
         }
+
     } catch (e) { 
+        console.error("OCR Error:", e);
         userState[chatId] = { step: 'M_TRX' };
-        bot.sendMessage(chatId, "❌ OCR Error. Enter **Transaction ID** manually:");
+        bot.sendMessage(chatId, "❌ *Error scanning image.* Please enter your **Transaction ID** manually:");
     }
 });
