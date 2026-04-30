@@ -18,6 +18,22 @@ const maskNumber = (num) => {
     return num.substring(0, 4) + "****" + num.slice(-3);
 };
 
+
+
+bot.setMyCommands([
+  { command: "start", description: "Start the bot" },
+  { command: "deposit", description: "Make a deposit" },
+  { command: "withdraw", description: "Withdraw money" }
+]);
+
+bot.setChatMenuButton({
+  type: "commands"
+});
+
+
+
+
+
 // ======================
 // DATABASE INITIALIZATION
 // ======================
