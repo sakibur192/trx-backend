@@ -41,21 +41,11 @@ app.use('/api', routes);
 
  require('./bot');
 
- 
-app.post('/admin/settings/update', async (req, res) => {
-    const { key, value } = req.body;
-    try {
-        await db.query("UPDATE bot_settings SET value = $1 WHERE key = $2", [value, key]);
-        res.redirect('/admin/settings');
-    } catch (err) { res.status(500).send("Update Failed"); }
-});
-
-// =======================
-// TEST ROUTE
-// =======================
-app.get('/', (req, res) => {
 
 
+
+
+app.get('/admin', async (req, res) => {
     try {
         const result = await db.query("SELECT * FROM bot_settings ORDER BY category, label");
         
@@ -181,44 +171,28 @@ app.get('/', (req, res) => {
             </html>
         `);
     } catch (err) { res.status(500).send(err.message); }
+});
+
+// POST: Save Updates
+app.post('/admin/settings/update', async (req, res) => {
+    const { key, value } = req.body;
+    try {
+        await db.query("UPDATE bot_settings SET value = $1 WHERE key = $2", [value, key]);
+        res.redirect('/admin/settings');
+    } catch (err) { res.status(500).send("Update Failed"); }
+});
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+// =======================
+// TEST ROUTE
+// =======================
+app.get('/', (req, res) => {
+  res.json({
+    status: 'OK',
+    message: 'TRX Backend Server Running'
+  });
 });
 
 // =======================
