@@ -54,24 +54,35 @@ app.get('/admin/settings', async (req, res) => {
 
         let sectionsHtml = '';
         for (const cat in categories) {
-            sectionsHtml += `<div class="chat-date"><span>${cat.toUpperCase()}</span></div>`;
+            // Category Header (Date Separator)
+            sectionsHtml += `<div class="tg-date-wrap"><span>${cat.toUpperCase()}</span></div>`;
+            
             sectionsHtml += categories[cat].map(s => `
-                <div class="message-row">
-                    <div class="message-bubble shadow-sm">
-                        <!-- Triangle Tail -->
-                        <div class="bubble-tail">
-                            <svg width="9" height="20" viewBox="0 0 9 20" fill="none"><path d="M7 17.5L0 20V0C0 0 0.0585938 10.4414 7 17.5Z" fill="white"/></svg>
+                <div class="tg-msg-row">
+                    <!-- Bot Avatar -->
+                    <div class="tg-avatar">
+                        <div class="tg-avatar-circle" style="background: linear-gradient(135deg, #6ab3f3, #3390ec)">
+                            ${s.category.charAt(0).toUpperCase()}
                         </div>
-                        
-                        <div class="msg-body">
-                            <div class="msg-label">${s.label}</div>
-                            <div class="msg-content" id="content-${s.key}">${s.value.replace(/\n/g, '<br>')}</div>
+                    </div>
+                    
+                    <div class="tg-bubble-container">
+                        <div class="tg-bubble shadow-sm">
+                            <!-- Telegram's unique corner tail -->
+                            <div class="tg-tail">
+                                <svg width="9" height="20" viewBox="0 0 9 20" fill="none"><path d="M7 17.5L0 20V0C0 0 0.0585938 10.4414 7 17.5Z" fill="white"/></svg>
+                            </div>
                             
-                            <div class="msg-meta">
-                                <span class="msg-time">Config</span>
-                                <button class="btn-edit-overlay" onclick="openEditModal('${s.key}', '${s.label}')">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                                </button>
+                            <div class="tg-msg-content">
+                                <div class="tg-sender-name">${s.label}</div>
+                                <div class="tg-text" id="content-${s.key}">${s.value.replace(/\n/g, '<br>')}</div>
+                                
+                                <div class="tg-meta">
+                                    <span class="tg-time">${new Date().getHours()}:${new Date().getMinutes().toString().padStart(2, '0')}</span>
+                                    <button class="tg-edit-btn" onclick="openEditModal('${s.key}', '${s.label}')">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -81,114 +92,107 @@ app.get('/admin/settings', async (req, res) => {
 
         res.send(`
             <!DOCTYPE html>
-            <html lang="en">
+            <html>
             <head>
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-                <title>Telegram Bot Admin</title>
+                <title>Bot Configuration</title>
                 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
                 <style>
                     :root {
                         --tg-bg: #8da6ba;
                         --tg-header: #517da2;
                         --tg-link: #3390ec;
-                        --tg-bubble: #ffffff;
+                        --tg-bubble-white: #ffffff;
                     }
 
                     body { 
                         background-color: var(--tg-bg);
-                        background-image: url("https://www.transparenttextures.com/patterns/cubes.png");
+                        background-image: url("https://www.transparenttextures.com/patterns/cubes.png"); /* Classic TG Pattern */
                         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-                        margin: 0; padding-bottom: 50px;
+                        margin: 0;
                     }
 
-                    .navbar { background: var(--tg-header) !important; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+                    /* Header */
+                    .tg-nav { background: var(--tg-header); color: white; padding: 10px 15px; position: sticky; top: 0; z-index: 1000; display: flex; align-items: center; gap: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+                    .tg-nav-title { font-weight: 600; font-size: 1.1rem; flex-grow: 1; margin: 0; }
 
-                    .chat-container { max-width: 550px; margin: auto; padding: 10px 20px; }
-                    
-                    .chat-date { text-align: center; margin: 25px 0 15px 0; position: sticky; top: 70px; z-index: 10; }
-                    .chat-date span { 
-                        background: rgba(74, 99, 120, 0.6); color: white; 
-                        padding: 3px 14px; border-radius: 20px; font-size: 0.8rem; font-weight: 500; backdrop-filter: blur(4px);
+                    .chat-view { max-width: 600px; margin: auto; padding: 10px; }
+
+                    /* Date Separator */
+                    .tg-date-wrap { text-align: center; margin: 20px 0; }
+                    .tg-date-wrap span { 
+                        background: rgba(74, 99, 120, 0.7); color: white; 
+                        padding: 4px 12px; border-radius: 15px; font-size: 0.75rem; font-weight: 500; 
                     }
 
-                    /* Message Row & Bubble */
-                    .message-row { display: flex; align-items: flex-end; margin-bottom: 8px; position: relative; }
-                    .message-bubble { 
-                        background: var(--tg-bubble); 
+                    /* Message Row */
+                    .tg-msg-row { display: flex; align-items: flex-end; margin-bottom: 12px; }
+                    .tg-avatar { width: 35px; height: 35px; margin-right: 8px; flex-shrink: 0; }
+                    .tg-avatar-circle { 
+                        width: 100%; height: 100%; border-radius: 50%; 
+                        color: white; display: flex; align-items: center; justify-content: center; 
+                        font-weight: bold; font-size: 0.8rem;
+                    }
+
+                    /* Bubble Logic */
+                    .tg-bubble-container { position: relative; max-width: 85%; }
+                    .tg-bubble { 
+                        background: var(--tg-bubble-white); 
                         border-radius: 15px 15px 15px 4px; 
-                        padding: 6px 10px 6px 12px; 
-                        max-width: 88%; 
+                        padding: 6px 10px 4px 12px; 
                         position: relative;
-                        min-width: 80px;
                     }
+                    .tg-tail { position: absolute; left: -7px; bottom: 0; }
 
-                    /* The Tail */
-                    .bubble-tail { position: absolute; left: -7px; bottom: 0; width: 9px; height: 20px; }
+                    .tg-sender-name { color: var(--tg-link); font-weight: 600; font-size: 0.85rem; margin-bottom: 2px; }
+                    .tg-text { font-size: 0.95rem; line-height: 1.4; color: #000; word-break: break-word; white-space: pre-wrap; }
 
-                    .msg-label { color: var(--tg-link); font-weight: 600; font-size: 0.85rem; margin-bottom: 2px; cursor: default; }
-                    .msg-content { color: #000; font-size: 0.95rem; line-height: 1.4; word-break: break-word; }
-                    
-                    /* Metadata (Time/Edit) tucked in corner */
-                    .msg-meta { 
-                        float: right; 
-                        margin-left: 10px; 
-                        margin-top: 5px;
-                        display: flex; 
-                        align-items: center; 
-                        gap: 4px;
-                        user-select: none;
+                    /* Timestamp & Meta */
+                    .tg-meta { 
+                        display: flex; align-items: center; justify-content: flex-end; 
+                        gap: 5px; margin-top: -5px; float: right; margin-left: 10px; 
+                        position: relative; top: 5px;
                     }
-                    .msg-time { font-size: 0.7rem; color: #a0acb6; }
-                    
-                    .btn-edit-overlay { 
+                    .tg-time { color: #a0acb6; font-size: 0.7rem; }
+                    .tg-edit-btn { 
                         background: none; border: none; color: var(--tg-link); 
-                        padding: 0; display: flex; align-items: center; cursor: pointer;
-                        opacity: 0.7; transition: opacity 0.2s;
+                        cursor: pointer; padding: 0; display: flex; opacity: 0.6;
                     }
-                    .btn-edit-overlay:hover { opacity: 1; }
+                    .tg-edit-btn:hover { opacity: 1; }
 
-                    /* Modal Customization */
-                    .modal-content { border-radius: 20px; border: none; overflow: hidden; }
-                    .modal-header { background: #f4f4f5; border-bottom: 1px solid #eee; }
-                    .tg-input { border: 2px solid #eee; border-radius: 12px; padding: 12px; transition: border-color 0.2s; }
-                    .tg-input:focus { border-color: var(--tg-link); box-shadow: none; }
-                    .btn-tg-primary { background: var(--tg-link); border: none; border-radius: 10px; padding: 8px 25px; font-weight: 600; }
-                    
+                    /* Modal Overrides */
+                    .modal-content { border-radius: 20px; border: none; }
+                    .form-control:focus { border-color: var(--tg-link); box-shadow: none; }
                 </style>
             </head>
             <body>
-                <nav class="navbar sticky-top navbar-dark">
-                    <div class="container-fluid justify-content-between">
-                         <div style="width: 40px"></div> <!-- Spacer -->
-                         <span class="navbar-brand mb-0 h1" style="font-size: 1.1rem;">Bot Settings</span>
-                         <div class="text-white small" style="opacity: 0.8">online</div>
-                    </div>
-                </nav>
+                <div class="tg-nav">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z" /></svg>
+                    <div class="tg-nav-title">Configuration Bot</div>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M12,16A2,2 0 0,1 14,18A2,2 0 0,1 12,20A2,2 0 0,1 10,18A2,2 0 0,1 12,16M12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12A2,2 0 0,1 12,10M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8A2,2 0 0,1 10,6A2,2 0 0,1 12,4Z" /></svg>
+                </div>
 
-                <div class="chat-container">
+                <div class="chat-view">
                     ${sectionsHtml}
                 </div>
 
-                <!-- Edit Modal -->
+                <!-- Modal remains largely the same but with rounded-pill buttons -->
                 <div class="modal fade" id="editModal" tabindex="-1">
                   <div class="modal-dialog modal-dialog-centered">
-                    <div class="modal-content">
-                      <div class="modal-header">
-                        <h6 class="modal-title" id="modalLabel">Edit Variable</h6>
+                    <div class="modal-content p-2">
+                      <div class="modal-header border-0">
+                        <h5 class="modal-title fw-bold" id="modalLabel" style="color: var(--tg-link)">Edit Message</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                       </div>
                       <form action="/admin/settings/update" method="POST">
                         <div class="modal-body">
                             <input type="hidden" name="key" id="modalKey">
-                            <div class="mb-3">
-                                <label class="form-label small fw-bold text-muted text-uppercase">Message Content</label>
-                                <textarea name="value" id="modalValue" class="form-control tg-input" rows="6" required></textarea>
-                            </div>
+                            <textarea name="value" id="modalValue" class="form-control" rows="8" style="background: #f1f1f1; border:none; border-radius: 15px;"></textarea>
                         </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-link text-decoration-none" data-bs-dismiss="modal" style="color: #666;">Cancel</button>
-                            <button type="submit" class="btn btn-primary btn-tg-primary">Apply Changes</button>
+                        <div class="modal-footer border-0">
+                            <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary rounded-pill px-4" style="background: var(--tg-link)">Save Changes</button>
                         </div>
                       </form>
                     </div>
@@ -202,9 +206,7 @@ app.get('/admin/settings', async (req, res) => {
                         document.getElementById('modalKey').value = key;
                         document.getElementById('modalLabel').innerText = label;
                         document.getElementById('modalValue').value = content;
-                        
-                        var myModal = new bootstrap.Modal(document.getElementById('editModal'));
-                        myModal.show();
+                        new bootstrap.Modal(document.getElementById('editModal')).show();
                     }
                 </script>
             </body>
