@@ -284,8 +284,8 @@ bot.on('message', async (msg) => {
         // Wipe state to ensure no one is "stuck"
         delete userState[chatId]; 
   const startTitle = await getMsg('main_menu_title', "💰 *TRX WALLET APP*");
-    const depositBtn = await getUI('deposit_btn', '💰 Deposit');
-    const withdrawBtn = await getUI('withdraw_btn', '💸 Withdraw');
+    const depositBtn = await getMsg('deposit_btn', '💰 Deposit');
+    const withdrawBtn = await getMsg('withdraw_btn', '💸 Withdraw');
 
 
         const menuOptions = {
