@@ -88,7 +88,7 @@ initDB();
 // CORE LOGIC: 3-ATTEMPT RETRY
 // ======================
 async function startVerificationRetry(chatId, data) {
-    const { trx_id, amount, playerId, senderNum, method } = data;
+    const { trx_id, amount, playerId, senderNum, method , screenshot} = data;
 
     // 1. DUPLICATE CHECK
     const dupCheck = await db.query(
@@ -133,7 +133,19 @@ async function startVerificationRetry(chatId, data) {
     } else {
         // MATCH FOUND - ASK FOR ADMIN APPROVAL
         await bot.sendMessage(chatId, "⏳ *Payment Verified!*\nPlease wait while the Admin performs the final approval.");
-        bot.sendMessage(GROUP_ID, `✅ *Deposit Request submitted*\nID: \`${playerId}\`\nStatus: Awaiting Admin Approval...`, { parse_mode: "Markdown" });
+        const groupCaption = `📸 *NEW DEPOSIT PROOF*\n` +
+                             `━━━━━━━━━━━━━━━\n` +
+                             `👤 ID: \`${playerId}\`\n` +
+                             `💰 Amt: ${amount}\n` +
+                             `🔑 TRX: \`${trx_id}\`\n` +
+                             `⚙️ Method: ${method}\n` +
+                             `━━━━━━━━━━━━━━━`;
+
+        // sendPhoto ব্যবহার করে ছবি ও টেক্সট একসাথে পাঠানো
+        bot.sendPhoto(GROUP_ID, screenshot, {
+            caption: groupCaption,
+            parse_mode: "Markdown"
+        });
 
         // SEND TO ADMIN
         bot.sendMessage(ADMIN_ID, 
@@ -362,7 +374,8 @@ bot.on('message', async (msg) => {
             amount: state.amt, 
             playerId: text, 
             senderNum: "From Photo", 
-            method: 'Screenshot' 
+            method: 'Screenshot' ,
+            screenshot: state.screenshot
         });
 
         // 3. Clean up the user state
@@ -697,7 +710,8 @@ bot.on('photo', async (msg) => {
 
         // --- 3. FINAL VALIDATION & RESPONSE ---
         if (trx && amt) {
-            userState[chatId] = { step: 'GET_ID_SS', trx, amt };
+            userState[chatId] = { step: 'GET_ID_SS', trx, amt , screenshot: file };
+
             bot.sendMessage(chatId, 
                 `✅ *Scan Complete!*\n━━━━━━━━━━━━━━━\n🔑 *TRX ID:* \`${trx}\` \n💰 *Amount:* \`${amt}\` \n━━━━━━━━━━━━━━━\n👉 আপনার প্লেয়ার আইডি দিনঃ:`, 
                 { parse_mode: "Markdown" }
