@@ -1,6 +1,8 @@
 const TelegramBot = require('node-telegram-bot-api');
 const Tesseract = require('tesseract.js');
 const db = require('../db'); 
+const fs = require("fs");
+const path = require("path");
 
 // ======================
 // CONFIG
@@ -527,19 +529,6 @@ const keyboard = {
     ]
 };
 
-// helper: fix broken URLs safely
-const fixUrl = (url) => {
-    if (!url) return null;
-
-    // already full URL
-    if (url.startsWith("http://") || url.startsWith("https://")) {
-        return url;
-    }
-
-    // fallback: build full URL (CHANGE THIS)
-    return `http://187.127.145.228:4001${url}`;
-};
-
 try {
 
     // CASE 1: NO IMAGE
@@ -550,30 +539,49 @@ try {
         });
     }
 
-    // CASE 2: SINGLE IMAGE
-    if (images.rows.length === 1) {
-        const img = fixUrl(images.rows[0].image_url);
+    // helper: convert DB path → local file path
+    const getFilePath = (dbPath) => {
+        if (!dbPath) return null;
 
-        return await bot.sendPhoto(chatId, img, {
-            caption,
-            parse_mode: "Markdown",
-            reply_markup: keyboard
-        });
+        // remove /uploads/ if exists
+        const fileName = dbPath.split("/").pop();
+
+        return path.join(__dirname, "uploads", fileName);
+    };
+
+    // CASE 2: SINGLE IMAGE (DIRECT FILE STREAM)
+    if (images.rows.length === 1) {
+        const filePath = getFilePath(images.rows[0].image_url);
+
+        if (!fs.existsSync(filePath)) {
+            throw new Error("File not found: " + filePath);
+        }
+
+        return await bot.sendPhoto(
+            chatId,
+            fs.createReadStream(filePath),
+            {
+                caption,
+                parse_mode: "Markdown",
+                reply_markup: keyboard
+            }
+        );
     }
 
-    // CASE 3: MULTIPLE IMAGES
-    const media = images.rows
-        .map((img, i) => {
-            const url = fixUrl(img.image_url);
-            if (!url) return null;
+    // CASE 3: MULTIPLE IMAGES (SAFE MEDIA GROUP)
+    const media = [];
 
-            return {
-                type: "photo",
-                media: url,
-                caption: i === 0 ? caption : undefined
-            };
-        })
-        .filter(Boolean); // remove nulls
+    for (let i = 0; i < images.rows.length; i++) {
+        const filePath = getFilePath(images.rows[i].image_url);
+
+        if (!fs.existsSync(filePath)) continue;
+
+        media.push({
+            type: "photo",
+            media: fs.createReadStream(filePath),
+            caption: i === 0 ? caption : undefined
+        });
+    }
 
     if (media.length === 1) {
         return await bot.sendPhoto(chatId, media[0].media, {
@@ -586,7 +594,6 @@ try {
     if (media.length > 1) {
         await bot.sendMediaGroup(chatId, media);
 
-        // buttons MUST be separate
         return await bot.sendMessage(chatId, "💸 Select Method", {
             reply_markup: keyboard
         });
@@ -595,13 +602,10 @@ try {
 } catch (err) {
     console.error("IMAGE SEND ERROR:", err);
 
-    // fallback so bot NEVER crashes
-    return bot.sendMessage(chatId, "⚠️ Failed to load images, please try again.", {
+    return bot.sendMessage(chatId, "⚠️ Failed to load images.", {
         reply_markup: keyboard
     });
 }
-
-
 
 
      
