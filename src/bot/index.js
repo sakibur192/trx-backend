@@ -508,14 +508,73 @@ else if (data === "withdraw") {
 
      const title = await getMsg('withdraw_menu_title', "💸 *Select Method:*");
 
-        bot.sendMessage(chatId, title, {
-            reply_markup: {
-                inline_keyboard: [
-                    [{ text: "bKash", callback_data: "w_bkash" }, { text: "Nagad", callback_data: "w_nagad" }],
-                    [{ text: "Rocket", callback_data: "w_rocket" }, { text: "Upay", callback_data: "w_upay" }]
-                ]
-            }
-        });
+
+const images = await db.query(
+    "SELECT image_url FROM bot_setting_images WHERE setting_key = $1 ORDER BY id ASC",
+    ["withdraw_menu"]
+);
+
+const caption = await getMsg("withdraw_menu_title", "💸 Select Method");
+
+const options = {
+    caption,
+    parse_mode: "Markdown",
+    reply_markup: {
+        inline_keyboard: [
+            [
+                { text: "bKash", callback_data: "w_bkash" },
+                { text: "Nagad", callback_data: "w_nagad" }
+            ],
+            [
+                { text: "Rocket", callback_data: "w_rocket" },
+                { text: "Upay", callback_data: "w_upay" }
+            ]
+        ]
+    }
+};
+
+// CASE 1: no image
+if (images.rows.length === 0) {
+    return bot.sendMessage(chatId, caption, options);
+}
+
+
+if (images.rows.length === 1) {
+    return bot.sendPhoto(chatId, images.rows[0].image_url, options);
+}
+
+// CASE 3: multiple images
+const media = images.rows.map((img, i) => ({
+    type: "photo",
+    media: img.image_url,
+    caption: i === 0 ? caption : undefined
+}));
+
+bot.sendMediaGroup(chatId, media);
+
+
+
+
+
+     
+        // bot.sendMessage(chatId, title, {
+        //     reply_markup: {
+        //         inline_keyboard: [
+        //             [{ text: "bKash", callback_data: "w_bkash" }, { text: "Nagad", callback_data: "w_nagad" }],
+        //             [{ text: "Rocket", callback_data: "w_rocket" }, { text: "Upay", callback_data: "w_upay" }]
+        //         ]
+        //     }
+        // });
+
+
+
+
+
+
+
+
+
+
     }
     else if (data.startsWith("w_")) {
         const method = data.split("_")[1].toUpperCase();

@@ -2,7 +2,19 @@ const express = require('express');
 const db = require('./db'); // 👈 import DB connection
 
 const app = express();
+const multer = require("multer");
+const path = require("path");
 
+const storage = multer.diskStorage({
+    destination: "./uploads",
+    filename: (req, file, cb) => {
+        cb(null, Date.now() + "-" + file.originalname);
+    }
+});
+
+const upload = multer({ storage });
+
+app.use('/uploads', express.static('uploads'));
 // =======================
 // Middleware
 // =======================
@@ -42,6 +54,78 @@ app.use('/api', routes);
  require('./bot');
 
 
+router.post('/admin/images/upload', upload.array('images', 10), async (req, res) => {
+    try {
+        const { key } = req.body;
+
+        if (!req.files?.length) {
+            return res.status(400).send({ error: "No images uploaded" });
+        }
+
+        for (const file of req.files) {
+            const imageUrl = `/uploads/${file.filename}`;
+
+            await db.query(`
+                INSERT INTO bot_setting_images (setting_key, image_url)
+                VALUES ($1, $2)
+            `, [key, imageUrl]);
+        }
+
+        res.send({
+            success: true,
+            message: "Images uploaded successfully"
+        });
+
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
+});
+
+
+
+router.get('/admin/images/:key', async (req, res) => {
+    try {
+        const { key } = req.params;
+
+        const result = await db.query(`
+            SELECT * FROM bot_setting_images
+            WHERE setting_key = $1
+            ORDER BY id DESC
+        `, [key]);
+
+        res.send({
+            success: true,
+            images: result.rows
+        });
+
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
+});
+
+router.post('/admin/images/delete', async (req, res) => {
+    try {
+        const { id } = req.body;
+
+        await db.query(`
+            DELETE FROM bot_setting_images
+            WHERE id = $1
+        `, [id]);
+
+        res.send({
+            success: true,
+            message: "Image deleted"
+        });
+
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
+});
+
+
+
+
+
 app.get('/admin/settings', async (req, res) => {
     try {
         const result = await db.query(
@@ -49,7 +133,10 @@ app.get('/admin/settings', async (req, res) => {
         );
 
         const categories = {};
-
+const images = await db.query(
+    "SELECT * FROM bot_setting_images WHERE setting_key = $1 ORDER BY id DESC",
+    [s.key]
+);
         // ======================
         // GROUPING SAFE (UNCHANGED LOGIC)
         // ======================
@@ -209,6 +296,64 @@ app.get('/admin/settings', async (req, res) => {
             </div>
           </div>
         </div>
+
+
+
+
+
+<div class="message-container">
+    <div class="message-bubble shadow-sm">
+
+        <div class="msg-label">📤 Upload Images</div>
+
+        <form action="/admin/images/upload" method="POST" enctype="multipart/form-data">
+
+            <!-- KEY INPUT -->
+            <input 
+                type="text" 
+                name="key" 
+                class="form-control mb-2" 
+                placeholder="Enter setting key (e.g. withdraw_menu)" 
+                required
+            />
+
+            <!-- FILE INPUT -->
+            <input 
+                type="file" 
+                name="images" 
+                class="form-control mb-2" 
+                multiple 
+                required
+            />
+
+            <!-- SUBMIT -->
+            <button type="submit" class="btn btn-primary w-100">
+                Upload Images
+            </button>
+
+        </form>
+
+    </div>
+</div>
+
+
+
+
+
+<div>
+    ${images.rows.map(img => `
+        <div style="margin-top:10px;">
+            <img src="${img.image_url}" style="width:100%;border-radius:10px;" />
+
+            <form method="POST" action="/admin/images/delete">
+                <input type="hidden" name="id" value="${img.id}" />
+                <button class="btn btn-danger btn-sm">Delete</button>
+            </form>
+        </div>
+    `).join('')}
+</div>
+
+
 
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 

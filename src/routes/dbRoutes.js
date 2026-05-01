@@ -514,6 +514,40 @@ router.post('/setgroupui', async (req, res) => {
     }
 });
 
+
+
+
+
+
+router.get('/admin/initimg', async (req, res) => {
+    try {
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS bot_setting_images (
+                id SERIAL PRIMARY KEY,
+                setting_key VARCHAR(100) NOT NULL,
+                image_url TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        res.send({
+            success: true,
+            message: "bot_setting_images table created or already exists"
+        });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).send({
+            success: false,
+            error: err.message
+        });
+    }
+});
+
+
+
+
+
 // ⚠️ *Duplicate Transaction!*
 // This TRX ID has already been submitted or processed.
 
