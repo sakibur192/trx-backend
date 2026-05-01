@@ -269,72 +269,155 @@ app.get('/admin/settings', async (req, res) => {
 
 
 
-router.get('/admin/images', async (req, res) => {
+app.get('/admin/images', async (req, res) => {
     try {
         const result = await db.query(
             "SELECT * FROM bot_setting_images ORDER BY created_at DESC"
         );
 
         let html = result.rows.map(img => `
-            <div class="card mb-3 shadow-sm">
-                <div class="card-body">
+            <div class="img-card">
 
-                    <h6>Key: <b>${img.setting_key}</b></h6>
-
-                    <img src="${img.image_url}" style="width:100%;border-radius:10px;margin-top:10px;" />
-
-                    <form method="POST" action="/admin/images/delete" style="margin-top:10px;">
-                        <input type="hidden" name="id" value="${img.id}" />
-                        <button class="btn btn-danger btn-sm w-100">
-                            🗑 Delete
-                        </button>
-                    </form>
-
+                <div class="img-header">
+                    🔑 <span>${img.setting_key}</span>
                 </div>
+
+                <img src="${img.image_url}" class="img-preview" />
+
+                <form method="POST" action="/admin/images/delete">
+                    <input type="hidden" name="id" value="${img.id}" />
+                    <button class="delete-btn">🗑 Delete</button>
+                </form>
+
             </div>
         `).join('');
 
         res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Image Manager</title>
-            <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-        </head>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Image Manager</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
 
-        <body class="bg-light">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 
-        <div class="container mt-4">
+    <style>
+        body {
+            background: #eef2f7;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
+        }
 
-            <h3 class="text-center mb-4">🖼 Bot Image Manager</h3>
+        .container {
+            max-width: 520px;
+        }
 
-            <!-- UPLOAD FORM -->
-            <div class="card mb-4">
-                <div class="card-body">
+        /* HEADER */
+        .title {
+            text-align: center;
+            font-weight: bold;
+            margin: 15px 0;
+            font-size: 20px;
+        }
 
-                    <form action="/admin/images/upload" method="POST" enctype="multipart/form-data">
+        /* UPLOAD CARD */
+        .upload-card {
+            background: #fff;
+            padding: 15px;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            margin-bottom: 15px;
+        }
 
-                        <input type="text" name="key" class="form-control mb-2"
-                            placeholder="setting_key (e.g. deposit_btn)" required />
+        .upload-card input {
+            margin-bottom: 10px;
+        }
 
-                        <input type="file" name="images" class="form-control mb-2" multiple required />
+        /* IMAGE CARD */
+        .img-card {
+            background: #fff;
+            border-radius: 15px;
+            margin-bottom: 15px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
 
-                        <button class="btn btn-primary w-100">
-                            📤 Upload Images
-                        </button>
+        .img-header {
+            padding: 10px 12px;
+            font-size: 13px;
+            font-weight: 600;
+            background: #f5f7fb;
+            color: #333;
+        }
 
-                    </form>
+        .img-preview {
+            width: 100%;
+            display: block;
+        }
 
-                </div>
-            </div>
+        /* DELETE BUTTON */
+        .delete-btn {
+            width: 100%;
+            border: none;
+            padding: 10px;
+            background: #ff4d4f;
+            color: white;
+            font-weight: 600;
+        }
 
-            <!-- IMAGE LIST -->
-            ${html}
+        .delete-btn:active {
+            transform: scale(0.98);
+        }
 
-        </div>
+        /* TOP BAR */
+        .topbar {
+            background: #517da2;
+            color: white;
+            text-align: center;
+            padding: 12px;
+            font-weight: bold;
+            border-radius: 0 0 12px 12px;
+        }
+    </style>
+</head>
 
-        </body>
-        </html>
+<body>
+
+<div class="topbar">🖼 Bot Image Manager</div>
+
+<div class="container mt-3">
+
+    <!-- UPLOAD SECTION -->
+    <div class="upload-card">
+
+        <form action="/admin/images/upload" method="POST" enctype="multipart/form-data">
+
+            <input type="text"
+                   name="key"
+                   class="form-control"
+                   placeholder="Setting Key (e.g. withdraw_btn)"
+                   required />
+
+            <input type="file"
+                   name="images"
+                   class="form-control"
+                   multiple
+                   required />
+
+            <button class="btn btn-primary w-100 mt-2">
+                📤 Upload Images
+            </button>
+
+        </form>
+
+    </div>
+
+    <!-- IMAGE LIST -->
+    ${html}
+
+</div>
+
+</body>
+</html>
         `);
 
     } catch (err) {
@@ -344,7 +427,7 @@ router.get('/admin/images', async (req, res) => {
 
 
 
-router.post('/admin/images/upload', upload.array('images', 10), async (req, res) => {
+app.post('/admin/images/upload', upload.array('images', 10), async (req, res) => {
     try {
         const { key } = req.body;
 
@@ -391,7 +474,7 @@ app.get('/admin/images/:key', async (req, res) => {
     }
 });
 
-router.post('/admin/images/delete', async (req, res) => {
+app.post('/admin/images/delete', async (req, res) => {
     try {
         const { id } = req.body;
 
