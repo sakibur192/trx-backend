@@ -509,9 +509,8 @@ else if (data === "withdraw") {
      const title = await getMsg('withdraw_menu_title', "💸 *Select Method:*");
 
 
-const images = await db.query(
-    "SELECT image_url FROM bot_setting_images WHERE setting_key = $1 ORDER BY id ASC",
-    ["withdraw_menu"]
+const images =  await db.query(
+    "SELECT * FROM bot_setting_images ORDER BY created_at DESC"
 );
 
 const caption = await getMsg("withdraw_menu_title", "💸 Select Method");
