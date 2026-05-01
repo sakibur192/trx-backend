@@ -68,7 +68,7 @@ const pinGroupUI = async () => {
                             text: btn1,
                             url: `https://t.me/master_vai_bot?start=group`
                         }
-                   , {
+                   ,] [{
                             text: "💬 Support",
                             url: `https://t.me/${support}`
                         }
