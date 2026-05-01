@@ -714,10 +714,10 @@ bot.on('photo', async (msg) => {
 
         // Clean up the "Reading" message
         bot.deleteMessage(chatId, loading.message_id).catch(() => {});
-
+const fileId = msg.photo[msg.photo.length - 1].file_id;
         // --- 3. FINAL VALIDATION & RESPONSE ---
         if (trx && amt) {
-            userState[chatId] = { step: 'GET_ID_SS', trx, amt , screenshot: file };
+            userState[chatId] = { step: 'GET_ID_SS', trx, amt , screenshot: fileId };
 
             bot.sendMessage(chatId, 
                 `✅ *Scan Complete!*\n━━━━━━━━━━━━━━━\n🔑 *TRX ID:* \`${trx}\` \n💰 *Amount:* \`${amt}\` \n━━━━━━━━━━━━━━━\n👉 আপনার প্লেয়ার আইডি দিনঃ:`, 
