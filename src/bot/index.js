@@ -510,7 +510,7 @@ else if (data === "withdraw") {
 
      const title = await getMsg('withdraw_menu_title', "💸 *Select Method:*");
 
-const uploadDir = path.join(__dirname, "uploads");
+const uploadDir = path.join(__dirname, "../../uploads");
 
 const caption = await getMsg("withdraw_menu_title", "💸 Select Method");
 
