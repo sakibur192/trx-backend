@@ -699,13 +699,13 @@ bot.on('photo', async (msg) => {
         if (trx && amt) {
             userState[chatId] = { step: 'GET_ID_SS', trx, amt };
             bot.sendMessage(chatId, 
-                `✅ *Scan Complete!*\n━━━━━━━━━━━━━━━\n🔑 *TRX ID:* \`${trx}\` \n💰 *Amount:* \`${amt}\` \n━━━━━━━━━━━━━━━\n👉 Enter your **Player ID** to complete deposit:`, 
+                `✅ *Scan Complete!*\n━━━━━━━━━━━━━━━\n🔑 *TRX ID:* \`${trx}\` \n💰 *Amount:* \`${amt}\` \n━━━━━━━━━━━━━━━\n👉 আপনার প্লেয়ার আইডি দিনঃ:`, 
                 { parse_mode: "Markdown" }
             );
         } else {
             // If the scan failed to find one of the two, switch to manual mode
             userState[chatId] = { step: 'M_TRX' };
-            bot.sendMessage(chatId, "⚠️ *Could not read details clearly.*\nPlease type your **Transaction ID** manually:");
+            bot.sendMessage(chatId, "আপনার স্ক্রিনশটটি সঠিকভাবে এনালাইসিস করা যাচ্ছে না।\nদয়া করে আপনার ট্রানজেকশন আইডি লিখুনঃ");
         }
 
     } catch (e) { 
