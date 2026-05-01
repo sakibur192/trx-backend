@@ -579,9 +579,8 @@ const fileId = msg.photo[msg.photo.length - 1].file_id;
             const ocrSuccessTitle = await getMsg('ocr_success', '✅ *Scan Complete!*');
 const ocrPlayerPrompt = await getMsg('ocr_player_prompt', '👉 আপনার প্লেয়ার আইডি দিনঃ:');
 
-            bot.sendMessage(chatId, 
-                `${ocrSuccessTitle}\n━━━━━━━━━━━━━━━\n🔑 *TRX ID:* \`${trx}\` \n💰 *Amount:* \`${amt}\` \n━━━━━━━━━━━━━━━\n${ocrPlayerPrompt}`, 
-                { parse_mode: "Markdown" }
+            bot.sendMessage(chatId, `${ocrSuccessTitle}\n━━━━━━━━━━━━━━━\n🔑 *TRX ID:* \`${trx}\` \n💰 *Amount:* \`${amt}\` \n━━━━━━━━━━━━━━━\n${ocrPlayerPrompt}`
+            
             );
         } else {
             // If the scan failed to find one of the two, switch to manual mode
