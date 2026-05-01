@@ -5,7 +5,7 @@ const fs = require("fs");
 const path = require("path");
 const app = express();
 const multer = require("multer");
-const path = require("path");
+
 
 const storage = multer.diskStorage({
     destination: "./uploads",
