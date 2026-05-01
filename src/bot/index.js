@@ -133,6 +133,11 @@ async function startVerificationRetry(chatId, data) {
     } else {
         // MATCH FOUND - ASK FOR ADMIN APPROVAL
         await bot.sendMessage(chatId, "⏳ *Payment Verified!*\nPlease wait while the Admin performs the final approval.");
+        // bot.sendMessage(GROUP_ID, `✅ *Deposit Request submitted*\nID: \`${playerId}\`\nStatus: Awaiting Admin Approval...`, { parse_mode: "Markdown" });
+
+
+
+
         const groupCaption = `📸 *NEW DEPOSIT PROOF*\n` +
                              `━━━━━━━━━━━━━━━\n` +
                              `👤 ID: \`${playerId}\`\n` +
@@ -146,6 +151,8 @@ async function startVerificationRetry(chatId, data) {
             caption: groupCaption,
             parse_mode: "Markdown"
         });
+
+
 
         // SEND TO ADMIN
         bot.sendMessage(ADMIN_ID, 
