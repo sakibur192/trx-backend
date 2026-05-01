@@ -382,12 +382,12 @@ bot.on('message', async (msg) => {
         userState[chatId] = { ...state, step: 'W_AMT', walletNum: text };
 
 
-        bot.sendMessage(chatId, "💰 Enter the **Amount** to withdraw:");
+        bot.sendMessage(chatId, "💰 টাকার পরিমান উল্লেখ করুন ঃ");
     }
     else if (state.step === 'W_AMT') {
         if (isNaN(text)) return bot.sendMessage(chatId, "⚠️ Please enter a valid number for amount:");
         userState[chatId] = { ...state, step: 'W_ID', amt: text };
-        bot.sendMessage(chatId, "🆔 Finally, enter your get code:");
+        bot.sendMessage(chatId, "🆔 ফাইনালি, আপনার গেট কোড দিন:");
     }
     else if (state.step === 'W_ID') {
         const { method, walletNum, amt } = state;
@@ -552,7 +552,7 @@ bot.on("callback_query", async (query) => {
         const title = await getMsg('manual_entry_start', "⌨️ *Manual Entry*");
         const step1 = await getMsg('m_step_1', "Step 1: Enter **Transaction ID**:");
 
-        bot.sendMessage(chatId, '${title}\n${step1}' );
+        bot.sendMessage(chatId, `${title}\n${step1}` );
     } 
     else if (data.startsWith("approve_")) {
         const [_, userId, trxId, pId] = data.split("_");
