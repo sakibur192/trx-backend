@@ -423,10 +423,7 @@ app.post('/admin/images/delete', async (req, res) => {
         const { id } = req.body;
 
         // 1. get image path first
-        const result = await db.query(
-            "SELECT image_url FROM bot_setting_images WHERE id = $1",
-            [id]
-        );
+      
 
         if (result.rows.length) {
             const imgUrl = result.rows[0].image_url;
@@ -442,10 +439,7 @@ app.post('/admin/images/delete', async (req, res) => {
         }
 
         // 2. delete from DB
-        await db.query(
-            "DELETE FROM bot_setting_images WHERE id = $1",
-            [id]
-        );
+     
 
         return res.redirect('/admin/images');
 
