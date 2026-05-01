@@ -1,6 +1,8 @@
 const express = require('express');
 const db = require('./db'); // 👈 import DB connection
 
+const fs = require("fs");
+const path = require("path");
 const app = express();
 const multer = require("multer");
 const path = require("path");
@@ -271,21 +273,24 @@ app.get('/admin/settings', async (req, res) => {
 
 app.get('/admin/images', async (req, res) => {
     try {
-        const result = await db.query(
-            "SELECT * FROM bot_setting_images ORDER BY created_at DESC"
-        );
 
-        let html = result.rows.map(img => `
+        const uploadDir = path.resolve(process.cwd(), "uploads");
+
+        const files = fs.readdirSync(uploadDir)
+            .filter(f => /\.(png|jpg|jpeg|webp)$/i.test(f))
+            .sort((a, b) => b.localeCompare(a));
+
+        let html = files.map((file, index) => `
             <div class="img-card">
 
                 <div class="img-header">
-                    🔑 <span>${img.setting_key}</span>
+                    📁 ${file}
                 </div>
 
-                <img src="${img.image_url}" class="img-preview" />
+                <img src="/uploads/${file}" class="img-preview" />
 
                 <form method="POST" action="/admin/images/delete">
-                    <input type="hidden" name="id" value="${img.id}" />
+                    <input type="hidden" name="id" value="${file}" />
                     <button class="delete-btn">🗑 Delete</button>
                 </form>
 
@@ -307,11 +312,8 @@ app.get('/admin/images', async (req, res) => {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
         }
 
-        .container {
-            max-width: 520px;
-        }
+        .container { max-width: 520px; }
 
-        /* HEADER */
         .title {
             text-align: center;
             font-weight: bold;
@@ -319,20 +321,14 @@ app.get('/admin/images', async (req, res) => {
             font-size: 20px;
         }
 
-        /* UPLOAD CARD */
         .upload-card {
             background: #fff;
             padding: 15px;
             border-radius: 15px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
             margin-bottom: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
         }
 
-        .upload-card input {
-            margin-bottom: 10px;
-        }
-
-        /* IMAGE CARD */
         .img-card {
             background: #fff;
             border-radius: 15px;
@@ -342,11 +338,9 @@ app.get('/admin/images', async (req, res) => {
         }
 
         .img-header {
-            padding: 10px 12px;
+            padding: 10px;
             font-size: 13px;
-            font-weight: 600;
             background: #f5f7fb;
-            color: #333;
         }
 
         .img-preview {
@@ -354,7 +348,6 @@ app.get('/admin/images', async (req, res) => {
             display: block;
         }
 
-        /* DELETE BUTTON */
         .delete-btn {
             width: 100%;
             border: none;
@@ -363,55 +356,24 @@ app.get('/admin/images', async (req, res) => {
             color: white;
             font-weight: 600;
         }
-
-        .delete-btn:active {
-            transform: scale(0.98);
-        }
-
-        /* TOP BAR */
-        .topbar {
-            background: #517da2;
-            color: white;
-            text-align: center;
-            padding: 12px;
-            font-weight: bold;
-            border-radius: 0 0 12px 12px;
-        }
     </style>
 </head>
 
 <body>
 
-<div class="topbar">🖼 Bot Image Manager</div>
-
 <div class="container mt-3">
 
-    <!-- UPLOAD SECTION -->
     <div class="upload-card">
-
         <form action="/admin/images/upload" method="POST" enctype="multipart/form-data">
 
-            <input type="text"
-                   name="key"
-                   class="form-control"
-                   placeholder="Setting Key (e.g. withdraw_btn)"
-                   required />
+            <input type="text" name="key" class="form-control" placeholder="Setting Key" required />
+            <input type="file" name="images" class="form-control mt-2" multiple required />
 
-            <input type="file"
-                   name="images"
-                   class="form-control"
-                   multiple
-                   required />
-
-            <button class="btn btn-primary w-100 mt-2">
-                📤 Upload Images
-            </button>
+            <button class="btn btn-primary w-100 mt-2">📤 Upload</button>
 
         </form>
-
     </div>
 
-    <!-- IMAGE LIST -->
     ${html}
 
 </div>
@@ -421,6 +383,7 @@ app.get('/admin/images', async (req, res) => {
         `);
 
     } catch (err) {
+        console.error(err);
         res.status(500).send(err.message);
     }
 });
@@ -455,39 +418,39 @@ app.post('/admin/images/upload', upload.array('images', 10), async (req, res) =>
 
 
 
-
-app.get('/admin/images/:key', async (req, res) => {
-    try {
-        const { key } = req.params;
-
-        const result = await db.query(`
-            SELECT * FROM bot_setting_images
-            WHERE setting_key = $1
-            ORDER BY id DESC
-        `, [key]);
-
-        res.send({
-            success: true,
-            images: result.rows
-        });
-
-    } catch (err) {
-        res.status(500).send({ error: err.message });
-    }
-});
-
 app.post('/admin/images/delete', async (req, res) => {
     try {
         const { id } = req.body;
 
+        // 1. get image path first
+        const result = await db.query(
+            "SELECT image_url FROM bot_setting_images WHERE id = $1",
+            [id]
+        );
+
+        if (result.rows.length) {
+            const imgUrl = result.rows[0].image_url;
+
+            // convert /uploads/xxx.jpg → real file path
+            const fileName = imgUrl.split("/").pop();
+            const filePath = path.resolve(process.cwd(), "uploads", fileName);
+
+            // delete file safely
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+            }
+        }
+
+        // 2. delete from DB
         await db.query(
             "DELETE FROM bot_setting_images WHERE id = $1",
             [id]
         );
 
-        res.redirect('/admin/images');
+        return res.redirect('/admin/images');
 
     } catch (err) {
+        console.error(err);
         res.status(500).send(err.message);
     }
 });
