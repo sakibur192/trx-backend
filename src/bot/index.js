@@ -508,49 +508,98 @@ else if (data === "withdraw") {
 
      const title = await getMsg('withdraw_menu_title', "💸 *Select Method:*");
 
-
-const images =  await db.query(
+const images = await db.query(
     "SELECT * FROM bot_setting_images ORDER BY created_at DESC"
 );
 
 const caption = await getMsg("withdraw_menu_title", "💸 Select Method");
 
-const options = {
-    caption,
-    parse_mode: "Markdown",
-    reply_markup: {
-        inline_keyboard: [
-            [
-                { text: "bKash", callback_data: "w_bkash" },
-                { text: "Nagad", callback_data: "w_nagad" }
-            ],
-            [
-                { text: "Rocket", callback_data: "w_rocket" },
-                { text: "Upay", callback_data: "w_upay" }
-            ]
+const keyboard = {
+    inline_keyboard: [
+        [
+            { text: "bKash", callback_data: "w_bkash" },
+            { text: "Nagad", callback_data: "w_nagad" }
+        ],
+        [
+            { text: "Rocket", callback_data: "w_rocket" },
+            { text: "Upay", callback_data: "w_upay" }
         ]
-    }
+    ]
 };
 
-// CASE 1: no image
-if (images.rows.length === 0) {
-    return bot.sendMessage(chatId, caption, options);
+// helper: fix broken URLs safely
+const fixUrl = (url) => {
+    if (!url) return null;
+
+    // already full URL
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+        return url;
+    }
+
+    // fallback: build full URL (CHANGE THIS)
+    return `http://187.127.145.228:4001${url}`;
+};
+
+try {
+
+    // CASE 1: NO IMAGE
+    if (!images.rows.length) {
+        return await bot.sendMessage(chatId, caption, {
+            parse_mode: "Markdown",
+            reply_markup: keyboard
+        });
+    }
+
+    // CASE 2: SINGLE IMAGE
+    if (images.rows.length === 1) {
+        const img = fixUrl(images.rows[0].image_url);
+
+        return await bot.sendPhoto(chatId, img, {
+            caption,
+            parse_mode: "Markdown",
+            reply_markup: keyboard
+        });
+    }
+
+    // CASE 3: MULTIPLE IMAGES
+    const media = images.rows
+        .map((img, i) => {
+            const url = fixUrl(img.image_url);
+            if (!url) return null;
+
+            return {
+                type: "photo",
+                media: url,
+                caption: i === 0 ? caption : undefined
+            };
+        })
+        .filter(Boolean); // remove nulls
+
+    if (media.length === 1) {
+        return await bot.sendPhoto(chatId, media[0].media, {
+            caption,
+            parse_mode: "Markdown",
+            reply_markup: keyboard
+        });
+    }
+
+    if (media.length > 1) {
+        await bot.sendMediaGroup(chatId, media);
+
+        // buttons MUST be separate
+        return await bot.sendMessage(chatId, "💸 Select Method", {
+            reply_markup: keyboard
+        });
+    }
+
+} catch (err) {
+    console.error("IMAGE SEND ERROR:", err);
+
+    // fallback so bot NEVER crashes
+    return bot.sendMessage(chatId, "⚠️ Failed to load images, please try again.", {
+        reply_markup: keyboard
+    });
 }
-
-
-if (images.rows.length === 1) {
-    return bot.sendPhoto(chatId, images.rows[0].image_url, options);
-}
-
-// CASE 3: multiple images
-const media = images.rows.map((img, i) => ({
-    type: "photo",
-    media: img.image_url,
-    caption: i === 0 ? caption : undefined
-}));
-
-bot.sendMediaGroup(chatId, media);
-
 
 
 

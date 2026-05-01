@@ -426,7 +426,7 @@ app.get('/admin/images', async (req, res) => {
 });
 
 
-
+const BASE_URL = "http://187.127.145.228:4001";
 app.post('/admin/images/upload', upload.array('images', 10), async (req, res) => {
     try {
         const { key } = req.body;
@@ -436,7 +436,9 @@ app.post('/admin/images/upload', upload.array('images', 10), async (req, res) =>
         }
 
         for (const file of req.files) {
-            const imageUrl = `/uploads/${file.filename}`;
+
+            // FIX: full URL instead of local path
+            const imageUrl = `${BASE_URL}/uploads/${file.filename}`;
 
             await db.query(`
                 INSERT INTO bot_setting_images (setting_key, image_url)
