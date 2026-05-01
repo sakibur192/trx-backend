@@ -97,16 +97,24 @@ async function startVerificationRetry(chatId, data) {
     );
 
     if (dupCheck.rows.length > 0) {
-        const dupMsg = await bot.sendMessage(chatId, "⚠️ *Duplicate Transaction!*\nThis TRX ID has already been submitted or processed.");
-        // bot.sendMessage(GROUP_ID, `🚫 *Duplicate Blocked*\nID: \`${playerId}\`\nTRX: \`${trx_id}\``, { parse_mode: "Markdown" });
+
+
+
+        const duplicateErrorText = await getMsg('err_duplicate_full',`⚠️ *Duplicate Transaction!This TRX ID has already been submitted or processed.`
+                                            );
+
+
+
+
+        const dupMsg = await bot.sendMessage(chatId, duplicateErrorText);
+     
         
         // Auto-delete user warning after 1 minute
         setTimeout(() => bot.deleteMessage(chatId, dupMsg.message_id).catch(() => {}), 60000);
         return;
     }
 
-    // 2. INITIAL NOTIFICATION
-    // bot.sendMessage(GROUP_ID, `🔔 *Deposit Initiated*\n👤 ID: \`${playerId}\`\n💰 Amt: ${amount}\n📱 Num: ${maskNumber(senderNum)}`, { parse_mode: "Markdown" });
+
 
     let match = null;
     for (let i = 1; i <= 3; i++) {
@@ -125,20 +133,34 @@ async function startVerificationRetry(chatId, data) {
     // 3. RESULT HANDLING
     if (!match) {
         // NOT FOUND CASE
-        const nfMsg = await bot.sendMessage(chatId, "❌ *Transaction Not Found.*\nWe couldn't verify this TRX. Please check details or try again later.");
-        // bot.sendMessage(GROUP_ID, `❌ *Verification Failed*\nID: \`${playerId}\`\nTRX: \`${trx_id}\` (Not Found)`, { parse_mode: "Markdown" });
+
+        const notFoundErrorText = await getMsg(
+  'err_not_found_full',
+  `❌ *Transaction Not Found.*
+We couldn't verify this TRX. Please check details or try again later.`
+);
+
+
+        const nfMsg = await bot.sendMessage(chatId, notFoundErrorText);
+      
         
         // Auto-delete after 5 minutes
         setTimeout(() => bot.deleteMessage(chatId, nfMsg.message_id).catch(() => {}), 300000);
     } else {
-        // MATCH FOUND - ASK FOR ADMIN APPROVAL
-        await bot.sendMessage(chatId, "⏳ *Payment Verified!*\nPlease wait while the Admin performs the final approval.");
-        // bot.sendMessage(GROUP_ID, `✅ *Deposit Request submitted*\nID: \`${playerId}\`\nStatus: Awaiting Admin Approval...`, { parse_mode: "Markdown" });
+       
+        const paymentVerifiedText = await getMsg(
+  'verifying_success_full',
+  `⏳ *Payment Verified!*
+Please wait while the Admin performs the final approval.`
+);
+
+        await bot.sendMessage(chatId, paymentVerifiedText);
+   
 
 
 
 
-        const groupCaption = `📸 *NEW DEPOSIT PROOF*\n` +
+        const groupCaption = `📸নতুন ডিপোজিট\n` +
                              `━━━━━━━━━━━━━━━\n` +
                              `👤 ID: \`${playerId}\`\n` +
                              `💰 Amt: ${amount}\n` +
@@ -200,121 +222,6 @@ const getMsg = async (key, fallback) => {
 
 
 
-// bot.on('message', async (msg) => {
-//     const chatId = msg.chat.id;
-//     const text = msg.text;
-
-//     if (!text) return;
-
-//     // 1. START COMMAND LOGIC
-//     if (text.toLowerCase() === '/start') {
-//         console.log(`[LOG] Start command triggered by ${chatId}`);
-//         delete userState[chatId]; 
-
-//         // Fetch Title from DB
-//         const startTitle = await getMsg('main_menu_title', "💰 *TRX WALLET APP*");
-
-//         const menuOptions = {
-//             parse_mode: "Markdown",
-//             reply_markup: { 
-//                 inline_keyboard: [
-//                     [{ text: "💰 Deposit", callback_data: "dep_menu" }, { text: "💸 Withdraw", callback_data: "withdraw" }]
-//                 ] 
-//             }
-//         };
-
-//         return bot.sendMessage(chatId, `${startTitle}\nWelcome! Choose an option below:`, menuOptions)
-//             .catch(err => console.error("Error sending start message:", err));
-//     }
-
-//     if (text.startsWith('/')) return;
-
-//     const state = userState[chatId];
-//     if (!state) return;
-
-//     // 2. MANUAL DEPOSIT STEPS
-//     if (state.step === 'M_TRX') {
-//         userState[chatId] = { ...state, step: 'M_AMT', trx: text };
-//         const step2 = await getMsg('m_step_2', "Step 2: Enter **Amount**:");
-//         bot.sendMessage(chatId, step2, { parse_mode: "Markdown" });
-//     } 
-//     else if (state.step === 'M_AMT') {
-//         userState[chatId] = { ...state, step: 'M_ID', amt: text };
-//         const step3 = await getMsg('m_step_3', "Step 3: Enter **Player ID**:");
-//         bot.sendMessage(chatId, step3, { parse_mode: "Markdown" });
-//     }  
-//     else if (state.step === 'M_ID') {
-//         const finalData = { trx_id: state.trx, amount: state.amt, playerId: text, senderNum: "text", method: 'Manual' };
-//         delete userState[chatId];
-        
-//         const verifMsg = await getMsg('verifying_status', "⏳ Verifying... please wait.");
-//         bot.sendMessage(chatId, verifMsg, { parse_mode: "Markdown" });
-//         startVerificationRetry(chatId, finalData);
-//     }
-
-//     // 3. SCREENSHOT DEPOSIT STEP
-//     else if (state.step === 'GET_ID_SS') {
-//         const verifMsg = await getMsg('verifying_status', "⏳ *Verifying your payment... please wait.*");
-//         bot.sendMessage(chatId, verifMsg, { parse_mode: "Markdown" });
-
-//         startVerificationRetry(chatId, { 
-//             trx_id: state.trx, 
-//             amount: state.amt, 
-//             playerId: text, 
-//             senderNum: "From Photo", 
-//             method: 'Screenshot' 
-//         });
-
-//         delete userState[chatId];
-//     }
-
-//     // 4. WITHDRAWAL STEPS
-//     else if (state.step === 'W_NUM') {
-//         const phoneRegex = /^(?:\+88|88)?(01[3-9]\d{8})$/;
-//         if (!phoneRegex.test(text.replace(/\s/g, ''))) {
-//             const errFormat = await getMsg('err_invalid_format', "⚠️ *Invalid Format!*");
-//             return bot.sendMessage(chatId, `${errFormat}\nEnter a valid number (e.g. 017XXXXXXXX):`, { parse_mode: "Markdown" });
-//         }
-//         userState[chatId] = { ...state, step: 'W_AMT', walletNum: text };
-//         bot.sendMessage(chatId, "💰 Enter the **Amount** to withdraw:");
-//     }
-//     else if (state.step === 'W_AMT') {
-//         if (isNaN(text)) return bot.sendMessage(chatId, "⚠️ Please enter a valid number for amount:");
-//         userState[chatId] = { ...state, step: 'W_ID', amt: text };
-//         bot.sendMessage(chatId, "🆔 Finally, enter your **Player ID**:");
-//     }
-//     else if (state.step === 'W_ID') {
-//         const { method, walletNum, amt } = state;
-//         const pId = text;
-//         delete userState[chatId];
-
-//         // Save to Database
-//         await db.query(
-//             "INSERT INTO withdraw_history (user_id, player_id, method, amount, wallet_number, status) VALUES ($1, $2, $3, $4, $5, 'pending')",
-//             [chatId, pId, method, amt, walletNum]
-//         );
-
-//         const successMsg = await getMsg('wd_success_msg', "✅ *Withdrawal Request Submitted!*");
-//         bot.sendMessage(chatId, successMsg, { parse_mode: "Markdown" });
-
-//         // Notify Group (Masked)
-//         const groupTitle = await getMsg('group_wd_req', "💸 *Withdrawal Request*");
-//         bot.sendMessage(GROUP_ID, `${groupTitle}\n🆔 ID: \`${pId}\`\n🏦 Method: ${method}\n📱 Num: ${maskNumber(walletNum)}\n💰 Amt: ${amt}`, { parse_mode: "Markdown" });
-
-//         // Notify Admin (Full)
-//         const adminTitle = await getMsg('admin_wd_req', "💸 *NEW WITHDRAWAL REQUEST*");
-//         bot.sendMessage(ADMIN_ID, `${adminTitle}\n👤 User: \`${chatId}\`\n🆔 Player ID: \`${pId}\`\n🏦 Method: ${method}\n📱 Num: \`${walletNum}\`\n💰 Amt: ${amt}`, {
-//             parse_mode: "Markdown",
-//             reply_markup: {
-//                 inline_keyboard: [[
-//                     { text: "✅ DONE", callback_data: `wdone_${chatId}_${pId}_${amt}` },
-//                     { text: "❌ REJECT", callback_data: `wrej_${chatId}_${pId}` }
-//                 ]]
-//             }
-//         });
-//     }
-// });
-
 
 
 bot.on('message', async (msg) => {
@@ -340,7 +247,8 @@ bot.on('message', async (msg) => {
             }
         };
 
-        return bot.sendMessage(chatId, `💰 ${startTitle}\nWelcome! Choose an option below:`, menuOptions)
+        const startWelcomeText = await getMsg('start_welcome', 'Welcome! Choose an option below:');
+        return bot.sendMessage(chatId, `💰 ${startTitle}\n${startWelcomeText}`, menuOptions)
             .catch(err => console.error("Error sending start message:", err));
     }
 
@@ -401,13 +309,26 @@ bot.on('message', async (msg) => {
         }
         userState[chatId] = { ...state, step: 'W_AMT', walletNum: text };
 
+        const withdrawEnterAmountText = await getMsg(
+  'withdraw_enter_amount',
+  '💰 টাকার পরিমান উল্লেখ করুন ঃ'
+);
 
-        bot.sendMessage(chatId, "💰 টাকার পরিমান উল্লেখ করুন ঃ");
+        bot.sendMessage(chatId, `${withdrawEnterAmountText}`);
     }
     else if (state.step === 'W_AMT') {
-        if (isNaN(text)) return bot.sendMessage(chatId, "⚠️ Please enter a valid number for amount:");
+        const invalidAmountText = await getMsg(
+  'err_invalid_amount',
+  '⚠️ Please enter a valid number for amount:'
+);
+        if (isNaN(text)) return bot.sendMessage(chatId, `${invalidAmountText}`);
         userState[chatId] = { ...state, step: 'W_ID', amt: text };
-        bot.sendMessage(chatId, "🆔 ফাইনালি, আপনার গেট কোড দিন:");
+
+const withdrawEnterPinText = await getMsg(
+  'withdraw_enter_pin',
+  '🆔 ফাইনালি, আপনার গেট কোড দিন:'
+);
+        bot.sendMessage(chatId, `${withdrawEnterPinText}`);
     }
     else if (state.step === 'W_ID') {
         const { method, walletNum, amt } = state;
@@ -454,102 +375,6 @@ bot.on('message', async (msg) => {
 
 
 
-// Helper to fetch dynamic message with a hardcoded fallback
-
-
-// bot.on("callback_query", async (query) => {
-//     const chatId = query.message.chat.id;
-//     const data = query.data;
-
-//     if (data === "dep_menu") {
-//         const title = await getMsg('dep_menu_title', "📥 *Choose Method:*");
-//         bot.sendMessage(chatId, title, {
-//             parse_mode: "Markdown",
-//             reply_markup: { inline_keyboard: [[{ text: "📸 Screenshot", callback_data: "dep_ss" }, { text: "⌨️ Manual", callback_data: "dep_manual" }]] }
-//         });
-//     } 
-//     else if (data === "dep_ss") {
-//         userState[chatId] = { step: 'WAITING_PHOTO' };
-//         const msg = await getMsg('ss_start', "📸 *Send your payment screenshot now:*");
-//         bot.sendMessage(chatId, msg);
-//     } 
-//     else if (data === "dep_manual") {
-//         userState[chatId] = { step: 'M_TRX' };
-//         const title = await getMsg('manual_entry_start', "⌨️ *Manual Entry*");
-//         const step1 = await getMsg('m_step_1', "Step 1: Enter **Transaction ID**:");
-//         bot.sendMessage(chatId, `${title}\n${step1}`, { parse_mode: "Markdown" });
-//     } 
-//     else if (data.startsWith("approve_")) {
-//         const [_, userId, trxId, pId] = data.split("_");
-        
-//         await db.query("UPDATE deposit_history SET status = 'success' WHERE trx_id = $1", [trxId]);
-        
-//         const userMsg = await getMsg('user_dep_success', "✅ *Deposit Successful!*\nYour account has been updated.");
-//         const groupMsg = await getMsg('group_dep_done', "💎 *Deposit Success*");
-        
-//         bot.sendMessage(userId, userMsg, { parse_mode: "Markdown" });
-//         bot.sendMessage(GROUP_ID, `${groupMsg}\n🆔 ID: \`${pId}\`\n💰 Status: Completed Successfully!`, { parse_mode: "Markdown" });
-        
-//         bot.editMessageText(`✅ Approved: ${pId} (${trxId})`, { chat_id: ADMIN_ID, message_id: query.message.message_id });
-//     } 
-//     else if (data.startsWith("reject_")) {
-//         const [_, userId, pId] = data.split("_");
-        
-//         const userMsg = await getMsg('user_dep_rej', "❌ *Deposit Rejected.*\nYour payment verification was unsuccessful. Contact support.");
-        
-//         bot.sendMessage(userId, userMsg, { parse_mode: "Markdown" });
-//         bot.sendMessage(GROUP_ID, `⚠️ *Deposit Rejected*\n🆔 ID: \`${pId}\`\nStatus: Unsuccessful.`, { parse_mode: "Markdown" });
-        
-//         bot.editMessageText(`❌ Rejected: ${pId}`, { chat_id: ADMIN_ID, message_id: query.message.message_id });
-//     }
-//     else if (data === "withdraw") {
-//         const title = await getMsg('withdraw_menu_title', "💸 *Select Method:*");
-//         bot.sendMessage(chatId, title, {
-//             reply_markup: {
-//                 inline_keyboard: [
-//                     [{ text: "bKash", callback_data: "w_bkash" }, { text: "Nagad", callback_data: "w_nagad" }],
-//                     [{ text: "Rocket", callback_data: "w_rocket" }, { text: "Upay", callback_data: "w_upay" }]
-//                 ]
-//             }
-//         });
-//     }
-//     else if (data.startsWith("w_")) {
-//         const method = data.split("_")[1].toUpperCase();
-//         userState[chatId] = { step: 'W_NUM', method: method };
-//         bot.sendMessage(chatId, `📱 You selected **${method}**.\nEnter your Mobile Number:`);
-//     }
-//     else if (data.startsWith("wdone_")) {
-//         const [_, userId, pId, amt] = data.split("_");
-        
-//         await db.query("UPDATE withdraw_history SET status = 'success' WHERE user_id = $1 AND player_id = $2 AND status = 'pending'", [userId, pId]);
-        
-//         const userMsg = await getMsg('user_wd_paid', "✅ *Withdrawal Success!*");
-//         const groupMsg = await getMsg('group_wd_done', "✅ *Withdrawal Paid*");
-        
-//         bot.sendMessage(userId, `${userMsg}\nYour request for ${amt} BDT has been paid.`, { parse_mode: "Markdown" });
-//         bot.sendMessage(GROUP_ID, `${groupMsg}\n🆔 ID: \`${pId}\`\n💰 Amount: ${amt}\nStatus: Success`, { parse_mode: "Markdown" });
-//         bot.editMessageText(`✅ Approved Withdrawal: ${pId}`, { chat_id: ADMIN_ID, message_id: query.message.message_id });
-//     }
-//     else if (data.startsWith("wrej_")) {
-//         const [_, userId, pId] = data.split("_");
-        
-//         await db.query("UPDATE withdraw_history SET status = 'rejected' WHERE user_id = $1 AND player_id = $2 AND status = 'pending'", [userId, pId]);
-        
-//         const userMsg = await getMsg('user_wd_rej', "❌ *Withdrawal Rejected.*\nContact support for details.");
-//         const groupMsg = await getMsg('group_wd_fail', "❌ *Withdrawal Rejected*");
-        
-//         bot.sendMessage(userId, userMsg);
-//         bot.sendMessage(GROUP_ID, `${groupMsg}\n🆔 ID: \`${pId}\`\nStatus: Failed`, { parse_mode: "Markdown" });
-//         bot.editMessageText(`❌ Rejected Withdrawal: ${pId}`, { chat_id: ADMIN_ID, message_id: query.message.message_id });
-//     }
-
-//     bot.answerCallbackQuery(query.id);
-// });
-
-
-
-
-
 
 bot.on("callback_query", async (query) => {
     const chatId = query.message.chat.id;
@@ -584,7 +409,13 @@ bot.on("callback_query", async (query) => {
 
 
         bot.sendMessage(userId, userMsg );
-        bot.sendMessage(GROUP_ID, `${groupMsg}\n🆔 ID: \`${pId}\`\n💰 Status: Completed Successfully!`, { parse_mode: "Markdown" });
+
+        const depositCompletedStatus = await getMsg(
+  'status_completed',
+  '💰 Status: Completed Successfully!'
+);
+
+        bot.sendMessage(GROUP_ID, `${groupMsg}\n🆔 ID: \`${pId}\`\n${depositCompletedStatus}`, { parse_mode: "Markdown" });
         
         bot.editMessageText(`✅ Approved: ${pId} (${trxId})`, { chat_id: ADMIN_ID, message_id: query.message.message_id });
     } 
@@ -594,9 +425,16 @@ bot.on("callback_query", async (query) => {
 
         const userMsg = await getMsg('user_dep_rej', "❌ *Deposit Rejected.*\nYour payment verification was unsuccessful. Contact support.");
         
+        const groupDepositRejected = await getMsg('group_dep_reject', '⚠️ *Deposit Rejected*');
 
         bot.sendMessage(userId, userMsg);
-        bot.sendMessage(GROUP_ID, `⚠️ *Deposit Rejected*\n🆔 ID: \`${pId}\`\nStatus: Unsuccessful.`, { parse_mode: "Markdown" });
+
+        const depositFailedStatus = await getMsg(
+  'status_unsuccessful',
+  'Status: Unsuccessful.'
+);
+
+        bot.sendMessage(GROUP_ID, `${groupDepositRejected}\n🆔 ID: \`${pId}\`\n${depositFailedStatus}`, { parse_mode: "Markdown" });
         
         bot.editMessageText(`❌ Rejected: ${pId}`, { chat_id: ADMIN_ID, message_id: query.message.message_id });
     }
@@ -620,9 +458,13 @@ else if (data === "withdraw") {
     else if (data.startsWith("w_")) {
         const method = data.split("_")[1].toUpperCase();
 
+        const withdrawMethodTemplate = await getMsg(
+  'withdraw_method_selected',
+  `নাম্বার লিখুন ঃ`
+);
         
         userState[chatId] = { step: 'W_NUM', method: method };
-        bot.sendMessage(chatId, `📱 You selected **${method}**.\nEnter your Mobile Number:`);
+        bot.sendMessage(chatId, `আপনার **${method}**.\n${withdrawMethodTemplate}`);
     }
     else if (data.startsWith("wdone_")) {
         const [_, userId, pId, amt] = data.split("_");
@@ -632,8 +474,18 @@ else if (data === "withdraw") {
  const userMsg = await getMsg('user_wd_paid', "✅ *Withdrawal Success!*");
 const groupMsg = await getMsg('group_wd_done', "✅ *Withdrawal Paid*");
 
-        bot.sendMessage(userId, `${userMsg}\nYour request for ${amt} BDT has been paid.`, { parse_mode: "Markdown" });
-        bot.sendMessage(GROUP_ID, `${groupMsg}\n🆔 ID: \`${pId}\`\n💰 Amount: ${amt}\nStatus: Success`, { parse_mode: "Markdown" });
+
+const userWithdrawPaidLine = await getMsg(
+  'user_wd_paid_line',
+  'টাকা প্রদান করা হয়েছে'
+);
+
+const withdrawSuccessStatus = await getMsg(
+  'status_success',
+  'Status: Success'
+);
+        bot.sendMessage(userId, `${userMsg}\n ${amt} ${userWithdrawPaidLine} `, { parse_mode: "Markdown" });
+        bot.sendMessage(GROUP_ID, `${groupMsg}\n🆔 ID: \`${pId}\`\n💰 Amount: ${amt}\n${withdrawSuccessStatus}`, { parse_mode: "Markdown" });
         bot.editMessageText(`✅ Approved Withdrawal: ${pId}`, { chat_id: ADMIN_ID, message_id: query.message.message_id });
     }
     else if (data.startsWith("wrej_")) {
@@ -645,8 +497,13 @@ const groupMsg = await getMsg('group_wd_done', "✅ *Withdrawal Paid*");
         const userMsg = await getMsg('user_wd_rej', "❌ *Withdrawal Rejected.*\nContact support for details.");
         const groupMsg = await getMsg('group_wd_fail', "❌ *Withdrawal Rejected*");
 
+        const withdrawFailedStatus = await getMsg(
+  'status_failed',
+  'Status: Failed'
+);
+
         bot.sendMessage(userId,userMsg);
-        bot.sendMessage(GROUP_ID, `${groupMsg}\n🆔 ID: \`${pId}\`\nStatus: Failed`, { parse_mode: "Markdown" });
+        bot.sendMessage(GROUP_ID, `${groupMsg}\n🆔 ID: \`${pId}\`\n${withdrawFailedStatus}`, { parse_mode: "Markdown" });
         bot.editMessageText(`❌ Rejected Withdrawal: ${pId}`, { chat_id: ADMIN_ID, message_id: query.message.message_id });
     }
 
@@ -677,8 +534,8 @@ const groupMsg = await getMsg('group_wd_done', "✅ *Withdrawal Paid*");
 bot.on('photo', async (msg) => {
     const chatId = msg.chat.id;
     if (userState[chatId]?.step !== 'WAITING_PHOTO') return;
-
-    const loading = await bot.sendMessage(chatId, "⏳ *Scanning Receipt with AI...*", { parse_mode: "Markdown" });
+const ocrScanningText = await getMsg('ocr_status', '⏳ *Scanning Receipt with AI...*');
+    const loading = await bot.sendMessage(chatId, `${ocrScanningText}`, { parse_mode: "Markdown" });
     
     try {
         const file = await bot.getFile(msg.photo[msg.photo.length - 1].file_id);
@@ -719,19 +576,36 @@ const fileId = msg.photo[msg.photo.length - 1].file_id;
         if (trx && amt) {
             userState[chatId] = { step: 'GET_ID_SS', trx, amt , screenshot: fileId };
 
+            const ocrSuccessTitle = await getMsg('ocr_success', '✅ *Scan Complete!*');
+const ocrPlayerPrompt = await getMsg('ocr_player_prompt', '👉 আপনার প্লেয়ার আইডি দিনঃ:');
+
             bot.sendMessage(chatId, 
-                `✅ *Scan Complete!*\n━━━━━━━━━━━━━━━\n🔑 *TRX ID:* \`${trx}\` \n💰 *Amount:* \`${amt}\` \n━━━━━━━━━━━━━━━\n👉 আপনার প্লেয়ার আইডি দিনঃ:`, 
+                `${ocrSuccessTitle}\n━━━━━━━━━━━━━━━\n🔑 *TRX ID:* \`${trx}\` \n💰 *Amount:* \`${amt}\` \n━━━━━━━━━━━━━━━\n${ocrPlayerPrompt}`, 
                 { parse_mode: "Markdown" }
             );
         } else {
             // If the scan failed to find one of the two, switch to manual mode
+
+const scanFailText = await getMsg(
+  'err_scan_fail_full',
+  `আপনার স্ক্রিনশটটি সঠিকভাবে এনালাইসিস করা যাচ্ছে না।
+দয়া করে আপনার ট্রানজেকশন আইডি লিখুনঃ`
+);
+
+
             userState[chatId] = { step: 'M_TRX' };
-            bot.sendMessage(chatId, "আপনার স্ক্রিনশটটি সঠিকভাবে এনালাইসিস করা যাচ্ছে না।\nদয়া করে আপনার ট্রানজেকশন আইডি লিখুনঃ");
+            bot.sendMessage(chatId, `${scanFailText}`);
         }
 
     } catch (e) { 
         console.error("OCR Error:", e);
         userState[chatId] = { step: 'M_TRX' };
-        bot.sendMessage(chatId, "❌ *Error scanning image.* Please enter your **Transaction ID** manually:");
+
+        const ocrErrorText = await getMsg(
+  'err_ocr_gen',
+  '❌ *Error scanning image.* Please enter your **Transaction ID** manually:'
+);
+
+        bot.sendMessage(chatId, `${ocrErrorText}`);
     }
 });
