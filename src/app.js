@@ -276,11 +276,16 @@ app.get('/admin/images', async (req, res) => {
 
         const uploadDir = path.resolve(process.cwd(), "uploads");
 
+        // safety check (prevents crash)
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+
         const files = fs.readdirSync(uploadDir)
             .filter(f => /\.(png|jpg|jpeg|webp)$/i.test(f))
             .sort((a, b) => b.localeCompare(a));
 
-        let html = files.map((file, index) => `
+        let html = files.map((file) => `
             <div class="img-card">
 
                 <div class="img-header">
@@ -290,7 +295,7 @@ app.get('/admin/images', async (req, res) => {
                 <img src="/uploads/${file}" class="img-preview" />
 
                 <form method="POST" action="/admin/images/delete">
-                    <input type="hidden" name="id" value="${file}" />
+                    <input type="hidden" name="file" value="${file}" />
                     <button class="delete-btn">🗑 Delete</button>
                 </form>
 
@@ -313,13 +318,6 @@ app.get('/admin/images', async (req, res) => {
         }
 
         .container { max-width: 520px; }
-
-        .title {
-            text-align: center;
-            font-weight: bold;
-            margin: 15px 0;
-            font-size: 20px;
-        }
 
         .upload-card {
             background: #fff;
@@ -418,34 +416,33 @@ app.post('/admin/images/upload', upload.array('images', 10), async (req, res) =>
 
 
 
+
 app.post('/admin/images/delete', async (req, res) => {
     try {
-        const { id } = req.body;
+        const { file } = req.body;
 
-        // 1. get image path first
-      
-
-        if (result.rows.length) {
-            const imgUrl = result.rows[0].image_url;
-
-            // convert /uploads/xxx.jpg → real file path
-            const fileName = imgUrl.split("/").pop();
-            const filePath = path.resolve(process.cwd(), "uploads", fileName);
-
-            // delete file safely
-            if (fs.existsSync(filePath)) {
-                fs.unlinkSync(filePath);
-            }
+        if (!file) {
+            return res.status(400).send("File not provided");
         }
 
-        // 2. delete from DB
-     
+        // prevent path injection
+        const fileName = path.basename(file);
+
+        const filePath = path.resolve(process.cwd(), "uploads", fileName);
+
+        // delete file if exists
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+            console.log("Deleted:", filePath);
+        } else {
+            console.log("File not found:", filePath);
+        }
 
         return res.redirect('/admin/images');
 
     } catch (err) {
-        console.error(err);
-        res.status(500).send(err.message);
+        console.error("DELETE ERROR:", err);
+        res.status(500).send("Delete failed");
     }
 });
 
