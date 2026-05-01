@@ -510,9 +510,7 @@ else if (data === "withdraw") {
 
      const title = await getMsg('withdraw_menu_title', "💸 *Select Method:*");
 
-const images = await db.query(
-    "SELECT * FROM bot_setting_images ORDER BY created_at DESC"
-);
+const uploadDir = path.join(__dirname, "uploads");
 
 const caption = await getMsg("withdraw_menu_title", "💸 Select Method");
 
@@ -531,35 +529,26 @@ const keyboard = {
 
 try {
 
-    // CASE 1: NO IMAGE
-    if (!images.rows.length) {
+    // read all files directly from folder
+    const files = fs.readdirSync(uploadDir)
+        .filter(f => /\.(png|jpg|jpeg|webp)$/i.test(f))
+        .sort((a, b) => b.localeCompare(a)); // latest first (optional)
+
+    // CASE 1: no images
+    if (!files.length) {
         return await bot.sendMessage(chatId, caption, {
             parse_mode: "Markdown",
             reply_markup: keyboard
         });
     }
 
-    // helper: convert DB path → local file path
-    const getFilePath = (dbPath) => {
-        if (!dbPath) return null;
+    const getPath = (file) => path.join(uploadDir, file);
 
-        // remove /uploads/ if exists
-        const fileName = dbPath.split("/").pop();
-
-        return path.join(__dirname, "uploads", fileName);
-    };
-
-    // CASE 2: SINGLE IMAGE (DIRECT FILE STREAM)
-    if (images.rows.length === 1) {
-        const filePath = getFilePath(images.rows[0].image_url);
-
-        if (!fs.existsSync(filePath)) {
-            throw new Error("File not found: " + filePath);
-        }
-
+    // CASE 2: single image
+    if (files.length === 1) {
         return await bot.sendPhoto(
             chatId,
-            fs.createReadStream(filePath),
+            fs.createReadStream(getPath(files[0])),
             {
                 caption,
                 parse_mode: "Markdown",
@@ -568,45 +557,24 @@ try {
         );
     }
 
-    // CASE 3: MULTIPLE IMAGES (SAFE MEDIA GROUP)
-    const media = [];
+    // CASE 3: multiple images
+    const media = files.slice(0, 10).map((file, i) => ({
+        type: "photo",
+        media: fs.createReadStream(getPath(file)),
+        caption: i === 0 ? caption : undefined
+    }));
 
-    for (let i = 0; i < images.rows.length; i++) {
-        const filePath = getFilePath(images.rows[i].image_url);
+    await bot.sendMediaGroup(chatId, media);
 
-        if (!fs.existsSync(filePath)) continue;
-
-        media.push({
-            type: "photo",
-            media: fs.createReadStream(filePath),
-            caption: i === 0 ? caption : undefined
-        });
-    }
-
-    if (media.length === 1) {
-        return await bot.sendPhoto(chatId, media[0].media, {
-            caption,
-            parse_mode: "Markdown",
-            reply_markup: keyboard
-        });
-    }
-
-    if (media.length > 1) {
-        await bot.sendMediaGroup(chatId, media);
-
-        return await bot.sendMessage(chatId, "💸 Select Method", {
-            reply_markup: keyboard
-        });
-    }
+    return await bot.sendMessage(chatId, "💸 Select Method", {
+        reply_markup: keyboard
+    });
 
 } catch (err) {
     console.error("IMAGE SEND ERROR:", err);
 
-    return bot.sendMessage(chatId, "⚠️ Failed to load images.", {
-        reply_markup: keyboard
-    });
+    return bot.sendMessage(chatId, "⚠️ Failed to load images.");
 }
-
 
      
         // bot.sendMessage(chatId, title, {
