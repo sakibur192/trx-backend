@@ -54,73 +54,11 @@ app.use('/api', routes);
  require('./bot');
 
 
-app.post('/admin/images/upload', upload.array('images', 10), async (req, res) => {
-    try {
-        const { key } = req.body;
-
-        if (!req.files?.length) {
-            return res.status(400).send({ error: "No images uploaded" });
-        }
-
-        for (const file of req.files) {
-            const imageUrl = `/uploads/${file.filename}`;
-
-            await db.query(`
-                INSERT INTO bot_setting_images (setting_key, image_url)
-                VALUES ($1, $2)
-            `, [key, imageUrl]);
-        }
-
-        res.send({
-            success: true,
-            message: "Images uploaded successfully"
-        });
-
-    } catch (err) {
-        res.status(500).send({ error: err.message });
-    }
-});
 
 
 
-app.get('/admin/images/:key', async (req, res) => {
-    try {
-        const { key } = req.params;
 
-        const result = await db.query(`
-            SELECT * FROM bot_setting_images
-            WHERE setting_key = $1
-            ORDER BY id DESC
-        `, [key]);
 
-        res.send({
-            success: true,
-            images: result.rows
-        });
-
-    } catch (err) {
-        res.status(500).send({ error: err.message });
-    }
-});
-
-app.post('/admin/images/delete', async (req, res) => {
-    try {
-        const { id } = req.body;
-
-        await db.query(`
-            DELETE FROM bot_setting_images
-            WHERE id = $1
-        `, [id]);
-
-        res.send({
-            success: true,
-            message: "Image deleted"
-        });
-
-    } catch (err) {
-        res.status(500).send({ error: err.message });
-    }
-});
 
 
 
@@ -133,10 +71,6 @@ app.get('/admin/settings', async (req, res) => {
         );
 
         const categories = {};
-const images = await db.query(
-    "SELECT * FROM bot_setting_images WHERE setting_key = $1 ORDER BY id DESC",
-    [s.key]
-);
         // ======================
         // GROUPING SAFE (UNCHANGED LOGIC)
         // ======================
@@ -264,6 +198,11 @@ const images = await db.query(
             <div class="container-fluid justify-content-center">
                 <span class="navbar-brand">🤖 Bot Config</span>
             </div>
+
+
+            <a href="/admin/images" class="btn btn-success w-100 mb-3">
+    🖼 Manage Images
+</a>
         </nav>
 
         <div class="chat-container">
@@ -301,60 +240,6 @@ const images = await db.query(
 
 
 
-<div class="message-container">
-    <div class="message-bubble shadow-sm">
-
-        <div class="msg-label">📤 Upload Images</div>
-
-        <form action="/admin/images/upload" method="POST" enctype="multipart/form-data">
-
-            <!-- KEY INPUT -->
-            <input 
-                type="text" 
-                name="key" 
-                class="form-control mb-2" 
-                placeholder="Enter setting key (e.g. withdraw_menu)" 
-                required
-            />
-
-            <!-- FILE INPUT -->
-            <input 
-                type="file" 
-                name="images" 
-                class="form-control mb-2" 
-                multiple 
-                required
-            />
-
-            <!-- SUBMIT -->
-            <button type="submit" class="btn btn-primary w-100">
-                Upload Images
-            </button>
-
-        </form>
-
-    </div>
-</div>
-
-
-
-
-
-<div>
-    ${images.rows.map(img => `
-        <div style="margin-top:10px;">
-            <img src="${img.image_url}" style="width:100%;border-radius:10px;" />
-
-            <form method="POST" action="/admin/images/delete">
-                <input type="hidden" name="id" value="${img.id}" />
-                <button class="btn btn-danger btn-sm">Delete</button>
-            </form>
-        </div>
-    `).join('')}
-</div>
-
-
-
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
         <script>
@@ -377,6 +262,151 @@ const images = await db.query(
         res.status(500).send(err.message);
     }
 });
+
+
+
+
+
+
+
+router.get('/admin/images', async (req, res) => {
+    try {
+        const result = await db.query(
+            "SELECT * FROM bot_setting_images ORDER BY created_at DESC"
+        );
+
+        let html = result.rows.map(img => `
+            <div class="card mb-3 shadow-sm">
+                <div class="card-body">
+
+                    <h6>Key: <b>${img.setting_key}</b></h6>
+
+                    <img src="${img.image_url}" style="width:100%;border-radius:10px;margin-top:10px;" />
+
+                    <form method="POST" action="/admin/images/delete" style="margin-top:10px;">
+                        <input type="hidden" name="id" value="${img.id}" />
+                        <button class="btn btn-danger btn-sm w-100">
+                            🗑 Delete
+                        </button>
+                    </form>
+
+                </div>
+            </div>
+        `).join('');
+
+        res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Image Manager</title>
+            <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+        </head>
+
+        <body class="bg-light">
+
+        <div class="container mt-4">
+
+            <h3 class="text-center mb-4">🖼 Bot Image Manager</h3>
+
+            <!-- UPLOAD FORM -->
+            <div class="card mb-4">
+                <div class="card-body">
+
+                    <form action="/admin/images/upload" method="POST" enctype="multipart/form-data">
+
+                        <input type="text" name="key" class="form-control mb-2"
+                            placeholder="setting_key (e.g. deposit_btn)" required />
+
+                        <input type="file" name="images" class="form-control mb-2" multiple required />
+
+                        <button class="btn btn-primary w-100">
+                            📤 Upload Images
+                        </button>
+
+                    </form>
+
+                </div>
+            </div>
+
+            <!-- IMAGE LIST -->
+            ${html}
+
+        </div>
+
+        </body>
+        </html>
+        `);
+
+    } catch (err) {
+        res.status(500).send(err.message);
+    }
+});
+
+
+
+router.post('/admin/images/upload', upload.array('images', 10), async (req, res) => {
+    try {
+        const { key } = req.body;
+
+        if (!req.files?.length) {
+            return res.status(400).send("No images uploaded");
+        }
+
+        for (const file of req.files) {
+            const imageUrl = `/uploads/${file.filename}`;
+
+            await db.query(`
+                INSERT INTO bot_setting_images (setting_key, image_url)
+                VALUES ($1, $2)
+            `, [key, imageUrl]);
+        }
+
+        res.redirect('/admin/images');
+
+    } catch (err) {
+        res.status(500).send(err.message);
+    }
+});
+
+
+
+
+app.get('/admin/images/:key', async (req, res) => {
+    try {
+        const { key } = req.params;
+
+        const result = await db.query(`
+            SELECT * FROM bot_setting_images
+            WHERE setting_key = $1
+            ORDER BY id DESC
+        `, [key]);
+
+        res.send({
+            success: true,
+            images: result.rows
+        });
+
+    } catch (err) {
+        res.status(500).send({ error: err.message });
+    }
+});
+
+router.post('/admin/images/delete', async (req, res) => {
+    try {
+        const { id } = req.body;
+
+        await db.query(
+            "DELETE FROM bot_setting_images WHERE id = $1",
+            [id]
+        );
+
+        res.redirect('/admin/images');
+
+    } catch (err) {
+        res.status(500).send(err.message);
+    }
+});
+
 
 
 // app.get('/admin/settings', async (req, res) => {
