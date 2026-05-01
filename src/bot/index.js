@@ -185,21 +185,23 @@ bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     const text = msg.text;
 
+    // 1. Basic Safety Check
     if (!text) return;
 
-    // 1. START COMMAND LOGIC
+    // 2. START COMMAND LOGIC
     if (text.toLowerCase() === '/start') {
         console.log(`[LOG] Start command triggered by ${chatId}`);
         delete userState[chatId]; 
 
-        // Fetch Title from DB
+        // Fetch Title from DB with fallback
         const startTitle = await getMsg('main_menu_title', "💰 *TRX WALLET APP*");
 
         const menuOptions = {
             parse_mode: "Markdown",
             reply_markup: { 
                 inline_keyboard: [
-                    [{ text: "💰 Deposit", callback_data: "dep_menu" }, { text: "💸 Withdraw", callback_data: "withdraw" }]
+                    [{ text: "💰 Deposit", callback_data: "dep_menu" }, { text: "💸 Withdraw", callback_data: "withdraw" }],
+                    [{ text: "☎️ Contact Support", url: `https://t.me/${SUPPORT_USERNAME}` }]
                 ] 
             }
         };
@@ -208,12 +210,14 @@ bot.on('message', async (msg) => {
             .catch(err => console.error("Error sending start message:", err));
     }
 
+    // 3. Ignore all other commands starting with /
     if (text.startsWith('/')) return;
 
+    // 4. Handle State-Based Conversational Flows
     const state = userState[chatId];
     if (!state) return;
 
-    // 2. MANUAL DEPOSIT STEPS
+    // --- DEPOSIT FLOW (Manual & Screenshot) ---
     if (state.step === 'M_TRX') {
         userState[chatId] = { ...state, step: 'M_AMT', trx: text };
         const step2 = await getMsg('m_step_2', "Step 2: Enter **Amount**:");
@@ -224,32 +228,26 @@ bot.on('message', async (msg) => {
         const step3 = await getMsg('m_step_3', "Step 3: Enter **Player ID**:");
         bot.sendMessage(chatId, step3, { parse_mode: "Markdown" });
     }  
-    else if (state.step === 'M_ID') {
-        const finalData = { trx_id: state.trx, amount: state.amt, playerId: text, senderNum: "text", method: 'Manual' };
-        delete userState[chatId];
-        
-        const verifMsg = await getMsg('verifying_status', "⏳ Verifying... please wait.");
-        bot.sendMessage(chatId, verifMsg, { parse_mode: "Markdown" });
-        startVerificationRetry(chatId, finalData);
-    }
-
-    // 3. SCREENSHOT DEPOSIT STEP
-    else if (state.step === 'GET_ID_SS') {
-        const verifMsg = await getMsg('verifying_status', "⏳ *Verifying your payment... please wait.*");
-        bot.sendMessage(chatId, verifMsg, { parse_mode: "Markdown" });
-
-        startVerificationRetry(chatId, { 
+    else if (state.step === 'M_ID' || state.step === 'GET_ID_SS') {
+        // 'text' here is the final Player ID provided by the user
+        const finalData = { 
             trx_id: state.trx, 
             amount: state.amt, 
             playerId: text, 
-            senderNum: "From Photo", 
-            method: 'Screenshot' 
-        });
-
-        delete userState[chatId];
+            senderNum: state.step === 'GET_ID_SS' ? "From Photo" : "Manual Entry", 
+            method: state.step === 'GET_ID_SS' ? 'Screenshot' : 'Manual' 
+        };
+        
+        delete userState[chatId]; // Clean state immediately
+        
+        const verifMsg = await getMsg('verifying_status', "⏳ Verifying... please wait.");
+        bot.sendMessage(chatId, verifMsg, { parse_mode: "Markdown" });
+        
+        // Call your verification function
+        startVerificationRetry(chatId, finalData);
     }
 
-    // 4. WITHDRAWAL STEPS
+    // --- WITHDRAWAL FLOW ---
     else if (state.step === 'W_NUM') {
         const phoneRegex = /^(?:\+88|88)?(01[3-9]\d{8})$/;
         if (!phoneRegex.test(text.replace(/\s/g, ''))) {
@@ -266,10 +264,10 @@ bot.on('message', async (msg) => {
     }
     else if (state.step === 'W_ID') {
         const { method, walletNum, amt } = state;
-        const pId = text;
+        const pId = text; // The player ID
         delete userState[chatId];
 
-        // Save to Database
+        // Save withdrawal to DB
         await db.query(
             "INSERT INTO withdraw_history (user_id, player_id, method, amount, wallet_number, status) VALUES ($1, $2, $3, $4, $5, 'pending')",
             [chatId, pId, method, amt, walletNum]
@@ -278,11 +276,11 @@ bot.on('message', async (msg) => {
         const successMsg = await getMsg('wd_success_msg', "✅ *Withdrawal Request Submitted!*");
         bot.sendMessage(chatId, successMsg, { parse_mode: "Markdown" });
 
-        // Notify Group (Masked)
+        // Notification for Group
         const groupTitle = await getMsg('group_wd_req', "💸 *Withdrawal Request*");
         bot.sendMessage(GROUP_ID, `${groupTitle}\n🆔 ID: \`${pId}\`\n🏦 Method: ${method}\n📱 Num: ${maskNumber(walletNum)}\n💰 Amt: ${amt}`, { parse_mode: "Markdown" });
 
-        // Notify Admin (Full)
+        // Notification for Admin
         const adminTitle = await getMsg('admin_wd_req', "💸 *NEW WITHDRAWAL REQUEST*");
         bot.sendMessage(ADMIN_ID, `${adminTitle}\n👤 User: \`${chatId}\`\n🆔 Player ID: \`${pId}\`\n🏦 Method: ${method}\n📱 Num: \`${walletNum}\`\n💰 Amt: ${amt}`, {
             parse_mode: "Markdown",
