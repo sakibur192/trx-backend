@@ -54,7 +54,7 @@ app.use('/api', routes);
  require('./bot');
 
 
-router.post('/admin/images/upload', upload.array('images', 10), async (req, res) => {
+app.post('/admin/images/upload', upload.array('images', 10), async (req, res) => {
     try {
         const { key } = req.body;
 
@@ -83,7 +83,7 @@ router.post('/admin/images/upload', upload.array('images', 10), async (req, res)
 
 
 
-router.get('/admin/images/:key', async (req, res) => {
+app.get('/admin/images/:key', async (req, res) => {
     try {
         const { key } = req.params;
 
@@ -103,7 +103,7 @@ router.get('/admin/images/:key', async (req, res) => {
     }
 });
 
-router.post('/admin/images/delete', async (req, res) => {
+app.post('/admin/images/delete', async (req, res) => {
     try {
         const { id } = req.body;
 
