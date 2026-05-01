@@ -459,7 +459,57 @@ Enter your Mobile Number:`, 'Withdraw'],
 });
 
 
+router.post('/setgroupui', async (req, res) => {
+    try {
+        const {
+            group_title,
+            group_text,
+            button_1,
+            button_2,
+            button_3,
+            deposit_btn,
+            withdraw_btn,
+            support_user
+        } = req.body;
 
+        const updates = [
+            ['group_title', 'Group Title', group_title, 'GroupUI'],
+            ['group_text', 'Group Text', group_text, 'GroupUI'],
+
+            ['btn_1', 'Button 1', button_1, 'GroupUI'],
+            ['btn_2', 'Button 2', button_2, 'GroupUI'],
+            ['btn_3', 'Button 3', button_3, 'GroupUI'],
+
+            ['deposit_btn', 'Deposit Button', deposit_btn, 'GroupUI'],
+            ['withdraw_btn', 'Withdraw Button', withdraw_btn, 'GroupUI'],
+
+            ['support_user', 'Support User', support_user, 'GroupUI']
+        ];
+
+        for (const [key, label, value, cat] of updates) {
+            if (!value) continue;
+
+            await db.query(`
+                INSERT INTO bot_settings (key, label, value, category)
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (key)
+                DO UPDATE SET value = EXCLUDED.value
+            `, [key, label, value, cat]);
+        }
+
+        res.send({
+            success: true,
+            message: "✅ Group UI updated successfully"
+        });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).send({
+            success: false,
+            error: err.message
+        });
+    }
+});
 
 // ⚠️ *Duplicate Transaction!*
 // This TRX ID has already been submitted or processed.

@@ -30,6 +30,59 @@ bot.setChatMenuButton({
 
 
 
+const getMsg = async (key, fallback) => {
+    try {
+        const res = await db.query("SELECT value FROM bot_settings WHERE key = $1", [key]);
+        return res.rows[0]?.value || fallback;
+    } catch (err) {
+        return fallback; // If DB fails, use hardcoded text
+    }
+};
+
+
+
+
+
+
+
+
+
+
+const pinGroupUI = async () => {
+
+    const title = await getMsg('group_title', '💰 TRX WALLET');
+    const text = await getMsg('group_text', 'Welcome');
+    const support = await getMsg('support_user', '8433649028');
+
+    const btn1 = await getMsg('btn_1', '🚀 Open Bot');
+  
+
+    const msg = await bot.sendMessage(GROUP_ID,
+        `🚀 *${title}*\n\n${text}`,
+        {
+            parse_mode: "Markdown",
+            reply_markup: {
+                inline_keyboard: [
+                    [
+                        {
+                            text: btn1,
+                            url: `https://t.me/master_vai_bot?start=group`
+                        }
+                   , {
+                            text: "💬 Support",
+                            url: `https://t.me/${support}`
+                        }
+                       
+                    ]
+                ]
+            }
+        }
+    );
+
+    await bot.pinChatMessage(GROUP_ID, msg.message_id);
+};
+
+pinGroupUI();
 
 
 // ======================
@@ -211,14 +264,7 @@ Please wait while the Admin performs the final approval.`
 
 
 
-const getMsg = async (key, fallback) => {
-    try {
-        const res = await db.query("SELECT value FROM bot_settings WHERE key = $1", [key]);
-        return res.rows[0]?.value || fallback;
-    } catch (err) {
-        return fallback; // If DB fails, use hardcoded text
-    }
-};
+
 
 
 
@@ -238,11 +284,15 @@ bot.on('message', async (msg) => {
         // Wipe state to ensure no one is "stuck"
         delete userState[chatId]; 
   const startTitle = await getMsg('main_menu_title', "💰 *TRX WALLET APP*");
+    const depositBtn = await getUI('deposit_btn', '💰 Deposit');
+    const withdrawBtn = await getUI('withdraw_btn', '💸 Withdraw');
+
+
         const menuOptions = {
             parse_mode: "Markdown",
             reply_markup: { 
                 inline_keyboard: [
-                    [{ text: "💰 Deposit", callback_data: "dep_menu" }, { text: "💸 Withdraw", callback_data: "withdraw" }]
+                    [{ text: depositBtn, callback_data: "dep_menu" }, { text: withdrawBtn, callback_data: "withdraw" }]
                 ] 
             }
         };
@@ -380,10 +430,22 @@ bot.on("callback_query", async (query) => {
     const chatId = query.message.chat.id;
     const data = query.data;
        const title = await getMsg('dep_menu_title', "📥 *Choose Method:*");
+
+
+    const btn2 = await getMsg('btn_2', '📸 Screenshot');
+    const btn3 = await getMsg('btn_3', '⌨️ Manual');
+
     if (data === "dep_menu") {
         bot.sendMessage(chatId,title, {
             parse_mode: "Markdown",
-            reply_markup: { inline_keyboard: [[{ text: "📸 Screenshot", callback_data: "dep_ss" }, { text: "⌨️ Manual", callback_data: "dep_manual" }]] }
+            reply_markup: { inline_keyboard: [
+
+                [
+                    { text: btn2, callback_data: "dep_ss" }, 
+                { text: btn3, callback_data: "dep_manual" }
+                ]
+
+            ] }
         });
     } 
     else if (data === "dep_ss") {
