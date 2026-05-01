@@ -535,7 +535,7 @@ bot.on('photo', async (msg) => {
     const chatId = msg.chat.id;
     if (userState[chatId]?.step !== 'WAITING_PHOTO') return;
 const ocrScanningText = await getMsg('ocr_status', '⏳ *Scanning Receipt with AI...*');
-    const loading = await bot.sendMessage(chatId, `${ocrScanningText}`, { parse_mode: "Markdown" });
+    const loading = await bot.sendMessage(chatId, `${ocrScanningText}`);
     
     try {
         const file = await bot.getFile(msg.photo[msg.photo.length - 1].file_id);
@@ -579,9 +579,7 @@ const fileId = msg.photo[msg.photo.length - 1].file_id;
             const ocrSuccessTitle = await getMsg('ocr_success', '✅ *Scan Complete!*');
 const ocrPlayerPrompt = await getMsg('ocr_player_prompt', '👉 আপনার প্লেয়ার আইডি দিনঃ:');
 
-            bot.sendMessage(chatId, `${ocrSuccessTitle}\n━━━━━━━━━━━━━━━\n🔑 *TRX ID:* \`${trx}\` \n💰 *Amount:* \`${amt}\` \n━━━━━━━━━━━━━━━\n${ocrPlayerPrompt}`
-            
-            );
+bot.sendMessage(chatId, `${ocrSuccessTitle}\n━━━━━━━━━━━━━━━\n🔑 *TRX ID:* \`${trx}\` \n💰 *Amount:* \`${amt}\` \n━━━━━━━━━━━━━━━\n${ocrPlayerPrompt}`);
         } else {
             // If the scan failed to find one of the two, switch to manual mode
 
