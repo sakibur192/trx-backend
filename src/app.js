@@ -232,23 +232,11 @@ app.get('/admin/settings', async (req, res) => {
             text-align: center;
             border-radius: 10px;
             font-weight: 600;
-            display: block;
+            border : 1px solid black;
         ">
             🖼 Manage Images
         </a>
 
-        <a href="/transactions" style="
-            text-decoration: none;
-            background: #17a2b8;
-            color: white;
-            padding: 12px;
-            text-align: center;
-            border-radius: 10px;
-            font-weight: 600;
-            display: block;
-        ">
-            📜 History
-        </a>
 
         <a href="/depositreq" style="
             text-decoration: none;
@@ -258,7 +246,7 @@ app.get('/admin/settings', async (req, res) => {
             text-align: center;
             border-radius: 10px;
             font-weight: 600;
-            display: block;
+            border : 1px solid black;
         ">
             💰 Deposit Requests
         </a>
@@ -271,7 +259,7 @@ app.get('/admin/settings', async (req, res) => {
             text-align: center;
             border-radius: 10px;
             font-weight: 600;
-            display: block;
+            border : 1px solid black;
         ">
             💸 Withdraw Requests
         </a>
