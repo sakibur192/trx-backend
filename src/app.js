@@ -434,27 +434,7 @@ app.get('/depositreq', async (req, res) => {
                     <b>📊 Status:</b> <span class="${r.status}">${r.status}</span>
                 </div>
 
-                ${
-                    r.status === 'pending'
-                    ? `
-                    <div class="btns">
-                        <form method="POST" action="/depositreq/approve">
-                            <input type="hidden" name="trx_id" value="${r.trx_id}">
-                            <input type="hidden" name="user_id" value="${r.user_id}">
-                            <input type="hidden" name="player_id" value="${r.player_id}">
-                            <button class="ok">✅ Approve</button>
-                        </form>
-
-                        <form method="POST" action="/depositreq/reject">
-                            <input type="hidden" name="trx_id" value="${r.trx_id}">
-                            <input type="hidden" name="user_id" value="${r.user_id}">
-                            <input type="hidden" name="player_id" value="${r.player_id}">
-                            <button class="bad">❌ Reject</button>
-                        </form>
-                    </div>
-                    `
-                    : ''
-                }
+    
             </div>
         `).join('');
 
@@ -504,25 +484,7 @@ app.get('/withdrawreq', async (req, res) => {
                     <b>📊 Status:</b> <span class="${r.status}">${r.status}</span>
                 </div>
 
-                ${
-                    r.status === 'pending'
-                    ? `
-                    <div class="btns">
-                        <form method="POST" action="/withdrawreq/approve">
-                            <input type="hidden" name="user_id" value="${r.user_id}">
-                            <input type="hidden" name="player_id" value="${r.player_id}">
-                            <button class="ok">✅ Approve</button>
-                        </form>
-
-                        <form method="POST" action="/withdrawreq/reject">
-                            <input type="hidden" name="user_id" value="${r.user_id}">
-                            <input type="hidden" name="player_id" value="${r.player_id}">
-                            <button class="bad">❌ Reject</button>
-                        </form>
-                    </div>
-                    `
-                    : ''
-                }
+              
             </div>
         `).join('');
 
