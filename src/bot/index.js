@@ -277,7 +277,7 @@ bot.on('message', async (msg) => {
     const text = msg.text;
 
     // 1. Check if text exists
-    if (!text) return;
+    
 
     // 2. FORCE START LOGIC
     if (text.toLowerCase() === '/start') {
