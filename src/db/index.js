@@ -35,4 +35,10 @@ const pool = new Pool({
   ssl: false
 });
 
+
+
+pool.query('SELECT inet_server_addr()', (err, res) => {
+  console.log("DB SERVER:", res.rows[0]);
+});
+
 module.exports = pool;

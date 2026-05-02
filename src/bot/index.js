@@ -54,10 +54,10 @@ const pinGroupUI = async () => {
 
     const title = await getMsg('group_title', '💰 TRX WALLET');
     const text = await getMsg('group_text', 'Welcome');
-    const support = await getMsg('support_user', '8433649028');
+    const support = await getMsg('support_user', 'dpzonebd');
 
     const btn1 = await getMsg('btn_1', '🚀 Open Bot');
-  
+
 
     const msg = await bot.sendMessage(GROUP_ID,
         `🚀 *${title}*\n\n${text}`,
