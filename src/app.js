@@ -196,27 +196,6 @@ app.get('/admin/settings', async (req, res) => {
 
         <body>
 
-    //     <nav class="navbar sticky-top navbar-dark" style="background:#517da2;">
-    //         <div class="container-fluid justify-content-center">
-    //             <span class="navbar-brand">🤖 Bot Config</span>
-    //         </div>
-
-
-    //         <a href="/admin/images" class="btn btn-success w-100 mb-3"> 
-
-    // 🖼 Manage Images
-    //     </a>
-
-    //         <br>
-    //         <a href="/transactions" class="btn btn-success w-100 mb-3">History</a> <br>
-    //         <a href="/transactions" class="btn btn-success w-100 mb-3">Deposit Requests</a> <br>
-    //         <a href="/transactions" class="btn btn-success w-100 mb-3">Withdraw Requests</a> <br>
-
-
-
-
-    //     </nav>
-
 
     <nav style="
     position: sticky;
