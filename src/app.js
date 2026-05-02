@@ -982,7 +982,7 @@ app.post('/admin/images/delete', async (req, res) => {
 app.post('/admin/settings/update', async (req, res) => {
     const { key, value } = req.body;
     try {
-        await db.query("UPDATE bot_settings SET value = $1 WHERE key = $2", [value, key]);
+        await db.query("UPDATE bot_settings SET value = $1 WHERE key = $2", [value.trim(), key]);
         res.redirect('/admin/settings');
     } catch (err) { res.status(500).send("Update Failed"); }
 });
