@@ -220,56 +220,53 @@ app.get('/admin/settings', async (req, res) => {
     <!-- BUTTONS -->
 <div style="
     display: flex;
-    flex-direction: column;
-    gap: 10px;
-    max-width: 420px;
-    margin: 10px auto;
-    padding: 0 10px;
+    gap: 8px;
+    padding: 10px;
 ">
 
     <a href="/admin/images" style="
-        display: block;
+        flex: 1;
         text-decoration: none;
         background: #28a745;
         color: white;
-        padding: 14px;
+        padding: 12px 6px;
         text-align: center;
-        border-radius: 12px;
+        border-radius: 10px;
         font-weight: 600;
         border: 1px solid #000;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        font-size: 13px;
     ">
-        🖼 Manage Images
+        🖼 Images
     </a>
 
     <a href="/depositreq" style="
-        display: block;
+        flex: 1;
         text-decoration: none;
         background: #ffc107;
         color: #000;
-        padding: 14px;
+        padding: 12px 6px;
         text-align: center;
-        border-radius: 12px;
+        border-radius: 10px;
         font-weight: 600;
         border: 1px solid #000;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        font-size: 13px;
     ">
-        💰 Deposit Requests
+        💰 Deposit
     </a>
 
     <a href="/withdrawreq" style="
-        display: block;
+        flex: 1;
         text-decoration: none;
         background: #dc3545;
         color: white;
-        padding: 14px;
+        padding: 12px 6px;
         text-align: center;
-        border-radius: 12px;
+        border-radius: 10px;
         font-weight: 600;
         border: 1px solid #000;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        font-size: 13px;
     ">
-        💸 Withdraw Requests
+        💸 Withdraw
     </a>
 
 </div>
