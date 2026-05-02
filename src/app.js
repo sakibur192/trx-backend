@@ -196,16 +196,110 @@ app.get('/admin/settings', async (req, res) => {
 
         <body>
 
-        <nav class="navbar sticky-top navbar-dark" style="background:#517da2;">
-            <div class="container-fluid justify-content-center">
-                <span class="navbar-brand">🤖 Bot Config</span>
-            </div>
+    //     <nav class="navbar sticky-top navbar-dark" style="background:#517da2;">
+    //         <div class="container-fluid justify-content-center">
+    //             <span class="navbar-brand">🤖 Bot Config</span>
+    //         </div>
 
 
-            <a href="/admin/images" class="btn btn-success w-100 mb-3">
-    🖼 Manage Images
-</a>
-        </nav>
+    //         <a href="/admin/images" class="btn btn-success w-100 mb-3"> 
+
+    // 🖼 Manage Images
+    //     </a>
+
+    //         <br>
+    //         <a href="/transactions" class="btn btn-success w-100 mb-3">History</a> <br>
+    //         <a href="/transactions" class="btn btn-success w-100 mb-3">Deposit Requests</a> <br>
+    //         <a href="/transactions" class="btn btn-success w-100 mb-3">Withdraw Requests</a> <br>
+
+
+
+
+    //     </nav>
+
+
+    <nav style="
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    background: #517da2;
+    padding: 12px;
+    border-radius: 0 0 14px 14px;
+">
+
+    <!-- TITLE -->
+    <div style="
+        text-align: center;
+        color: white;
+        font-weight: 700;
+        font-size: 18px;
+        margin-bottom: 10px;
+    ">
+        🤖 Bot Config
+    </div>
+
+    <!-- BUTTONS -->
+    <div style="
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    ">
+
+        <a href="/admin/images" style="
+            text-decoration: none;
+            background: #28a745;
+            color: white;
+            padding: 12px;
+            text-align: center;
+            border-radius: 10px;
+            font-weight: 600;
+            display: block;
+        ">
+            🖼 Manage Images
+        </a>
+
+        <a href="/transactions" style="
+            text-decoration: none;
+            background: #17a2b8;
+            color: white;
+            padding: 12px;
+            text-align: center;
+            border-radius: 10px;
+            font-weight: 600;
+            display: block;
+        ">
+            📜 History
+        </a>
+
+        <a href="/depositreq" style="
+            text-decoration: none;
+            background: #ffc107;
+            color: #000;
+            padding: 12px;
+            text-align: center;
+            border-radius: 10px;
+            font-weight: 600;
+            display: block;
+        ">
+            💰 Deposit Requests
+        </a>
+
+        <a href="/withdrawreq" style="
+            text-decoration: none;
+            background: #dc3545;
+            color: white;
+            padding: 12px;
+            text-align: center;
+            border-radius: 10px;
+            font-weight: 600;
+            display: block;
+        ">
+            💸 Withdraw Requests
+        </a>
+
+    </div>
+
+</nav>
 
         <div class="chat-container">
             ${sectionsHtml}
@@ -265,10 +359,234 @@ app.get('/admin/settings', async (req, res) => {
     }
 });
 
+function htmlPage(title, content) {
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${title}</title>
 
+<style>
+body {
+    font-family: system-ui;
+    background: #eef2f7;
+    margin: 0;
+}
 
+.header {
+    background: #4a6cf7;
+    color: #fff;
+    padding: 14px;
+    text-align: center;
+    font-weight: bold;
+}
 
+.container {
+    padding: 10px;
+}
 
+.card {
+    background: #fff;
+    padding: 12px;
+    border-radius: 12px;
+    margin-bottom: 10px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.row {
+    font-size: 14px;
+    margin: 3px 0;
+}
+
+.pending { color: orange; }
+.success { color: green; }
+.rejected { color: red; }
+
+.btns {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+button {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    font-weight: bold;
+}
+
+.ok {
+    background: #28a745;
+    color: white;
+}
+
+.bad {
+    background: #dc3545;
+    color: white;
+}
+</style>
+</head>
+
+<body>
+
+<div class="header">${title}</div>
+
+<div class="container">
+${content}
+</div>
+
+</body>
+</html>
+`;
+}
+
+app.get('/depositreq', async (req, res) => {
+    try {
+        const result = await db.query(`
+            SELECT * FROM deposit_history
+            ORDER BY id DESC
+        `);
+
+        const rows = result.rows.map(r => `
+            <div class="card">
+                <div class="row">
+                    <b>🆔 Player:</b> ${r.player_id}
+                </div>
+                <div class="row">
+                    <b>💰 Amount:</b> ${r.amount}
+                </div>
+                <div class="row">
+                    <b>🔑 TRX:</b> ${r.trx_id}
+                </div>
+                <div class="row">
+                    <b>📱 Sender:</b> ${r.sender_number || '-'}
+                </div>
+                <div class="row">
+                    <b>📊 Status:</b> <span class="${r.status}">${r.status}</span>
+                </div>
+
+                ${
+                    r.status === 'pending'
+                    ? `
+                    <div class="btns">
+                        <form method="POST" action="/depositreq/approve">
+                            <input type="hidden" name="trx_id" value="${r.trx_id}">
+                            <input type="hidden" name="user_id" value="${r.user_id}">
+                            <input type="hidden" name="player_id" value="${r.player_id}">
+                            <button class="ok">✅ Approve</button>
+                        </form>
+
+                        <form method="POST" action="/depositreq/reject">
+                            <input type="hidden" name="trx_id" value="${r.trx_id}">
+                            <input type="hidden" name="user_id" value="${r.user_id}">
+                            <input type="hidden" name="player_id" value="${r.player_id}">
+                            <button class="bad">❌ Reject</button>
+                        </form>
+                    </div>
+                    `
+                    : ''
+                }
+            </div>
+        `).join('');
+
+        res.send(htmlPage("💰 Deposit Requests", rows));
+
+    } catch (err) {
+        res.status(500).send(err.message);
+    }
+});
+
+app.post('/depositreq/approve', async (req, res) => {
+    const { trx_id } = req.body;
+
+    await db.query(
+        "UPDATE deposit_history SET status = 'success' WHERE trx_id = $1",
+        [trx_id]
+    );
+
+    res.redirect('/depositreq');
+});
+
+app.post('/depositreq/reject', async (req, res) => {
+    const { trx_id } = req.body;
+
+    await db.query(
+        "UPDATE deposit_history SET status = 'rejected' WHERE trx_id = $1",
+        [trx_id]
+    );
+
+    res.redirect('/depositreq');
+});
+
+app.get('/withdrawreq', async (req, res) => {
+    try {
+        const result = await db.query(`
+            SELECT * FROM withdraw_history
+            ORDER BY id DESC
+        `);
+
+        const rows = result.rows.map(r => `
+            <div class="card">
+                <div class="row"><b>🆔 Player:</b> ${r.player_id}</div>
+                <div class="row"><b>💰 Amount:</b> ${r.amount}</div>
+                <div class="row"><b>🏦 Method:</b> ${r.method}</div>
+                <div class="row"><b>📱 Number:</b> ${r.wallet_number}</div>
+                <div class="row">
+                    <b>📊 Status:</b> <span class="${r.status}">${r.status}</span>
+                </div>
+
+                ${
+                    r.status === 'pending'
+                    ? `
+                    <div class="btns">
+                        <form method="POST" action="/withdrawreq/approve">
+                            <input type="hidden" name="user_id" value="${r.user_id}">
+                            <input type="hidden" name="player_id" value="${r.player_id}">
+                            <button class="ok">✅ Approve</button>
+                        </form>
+
+                        <form method="POST" action="/withdrawreq/reject">
+                            <input type="hidden" name="user_id" value="${r.user_id}">
+                            <input type="hidden" name="player_id" value="${r.player_id}">
+                            <button class="bad">❌ Reject</button>
+                        </form>
+                    </div>
+                    `
+                    : ''
+                }
+            </div>
+        `).join('');
+
+        res.send(htmlPage("💸 Withdraw Requests", rows));
+
+    } catch (err) {
+        res.status(500).send(err.message);
+    }
+});
+
+app.post('/withdrawreq/approve', async (req, res) => {
+    const { user_id, player_id } = req.body;
+
+    await db.query(
+        "UPDATE withdraw_history SET status = 'success' WHERE user_id = $1 AND player_id = $2 AND status = 'pending'",
+        [user_id, player_id]
+    );
+
+    res.redirect('/withdrawreq');
+});
+
+app.post('/withdrawreq/reject', async (req, res) => {
+    const { user_id, player_id } = req.body;
+
+    await db.query(
+        "UPDATE withdraw_history SET status = 'rejected' WHERE user_id = $1 AND player_id = $2 AND status = 'pending'",
+        [user_id, player_id]
+    );
+
+    res.redirect('/withdrawreq');
+});
 
 
 app.get('/admin/images', async (req, res) => {
@@ -414,7 +732,156 @@ app.post('/admin/images/upload', upload.array('images', 10), async (req, res) =>
     }
 });
 
+function getStatusClass(status) {
+  if (status === 'success') return 'success';
+  if (status === 'failed') return 'failed';
+  return 'processing';
+}
+app.get('/transactions', async (req, res) => {
+  try {
+    const { trx_id } = req.query;
 
+    let result;
+
+    // 🔍 SEARCH MODE
+    if (trx_id) {
+      result = await db.query(
+        `SELECT * FROM transactions
+         WHERE trx_id ILIKE $1
+         ORDER BY id DESC`,
+        [`%${trx_id}%`]
+      );
+    } else {
+      // 📋 ALL DATA
+      result = await db.query(
+        `SELECT * FROM transactions ORDER BY id DESC`
+      );
+    }
+
+    const rows = result.rows;
+
+    // table rows
+    const tableRows = rows.map(row => `
+      <tr>
+        <td>${row.id}</td>
+        <td>${row.trx_id}</td>
+        <td>${row.amount}</td>
+        <td>${row.sender}</td>
+        <td>${row.user_id || '-'}</td>
+        <td>${row.player_id || '-'}</td>
+        <td>${row.source || '-'}</td>
+        <td>
+          <span class="badge ${getStatusClass(row.status)}">
+            ${row.status}
+          </span>
+        </td>
+        <td>${new Date(row.created_at).toLocaleString()}</td>
+      </tr>
+    `).join('');
+
+    res.send(`
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Transactions</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <style>
+    body {
+      background: #f4f6f9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto;
+    }
+
+    .container {
+      max-width: 1100px;
+    }
+
+    .card {
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    }
+
+    table {
+      font-size: 14px;
+    }
+
+    .badge {
+      padding: 5px 8px;
+      border-radius: 8px;
+      font-size: 12px;
+    }
+
+    .processing { background: orange; color: white; }
+    .success { background: green; color: white; }
+    .failed { background: red; color: white; }
+  </style>
+</head>
+
+<body>
+
+<div class="container mt-4">
+
+  <h4 class="mb-3">💰 Transaction History</h4>
+
+  <!-- 🔍 SEARCH -->
+  <div class="card p-3 mb-3">
+    <form method="GET" action="/transactions">
+      <div class="input-group">
+        <input type="text"
+               name="trx_id"
+               class="form-control"
+               placeholder="Search by Transaction ID"
+               value="${trx_id || ''}" />
+        <button class="btn btn-primary">Search</button>
+        <a href="/transactions" class="btn btn-secondary">Reset</a>
+      </div>
+    </form>
+  </div>
+
+  <!-- 📋 TABLE -->
+  <div class="card p-3">
+
+    <div class="table-responsive">
+      <table class="table table-bordered table-hover align-middle">
+
+        <thead class="table-light">
+          <tr>
+            <th>ID</th>
+            <th>TRX ID</th>
+            <th>Amount</th>
+            <th>Sender</th>
+            <th>User</th>
+            <th>Player</th>
+            <th>Source</th>
+            <th>Status</th>
+            <th>Time</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          ${tableRows || `<tr><td colspan="9" class="text-center">No data found</td></tr>`}
+        </tbody>
+
+      </table>
+    </div>
+
+  </div>
+
+</div>
+
+</body>
+</html>
+    `);
+
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+});
+
+
+// 🎯 helper function
 
 
 app.post('/admin/images/delete', async (req, res) => {
