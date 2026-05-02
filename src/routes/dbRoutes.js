@@ -120,30 +120,31 @@ router.post('/init-withdraw', async (req, res) => {
 //   }
 // });
 
+
+
+
+
+
+
 router.post('/sms', async (req, res) => {
   try {
-    let { trx_id, amount, sender } = req.body;
+    const { trx_id, amount, sender } = req.body;
 
-    if (!sender) {
-      return res.status(400).json({ error: "Sender required" });
-    }
+    // ✅ Normalize sender (optional but recommended)
+    const normalizedSender = sender.trim().toLowerCase();
 
-    // normalize sender (remove spaces, dashes etc)
-    sender = sender.replace(/[\s-]/g, "");
+    // ✅ Allowed senders
+    const allowedSenders = ['bkash', 'nagad', '16216'];
 
-    // ❌ BLOCK Bangladeshi personal numbers
-    const isBDNumber =
-      /^01[3-9]\d{8}$/.test(sender) ||        // 017XXXXXXXX
-      /^\+8801[3-9]\d{8}$/.test(sender);     // +88017XXXXXXXX
-
-    if (isBDNumber) {
-      return res.status(403).json({
-        status: "blocked",
-        message: "Personal BD numbers are not allowed"
+    // ❌ If sender not allowed → skip insert
+    if (!allowedSenders.includes(normalizedSender)) {
+      return res.status(400).json({
+        status: 'ignored',
+        message: 'Sender not allowed'
       });
     }
 
-    // 1. Check if trx exists
+    // 1. Check if it exists
     const checkExist = await db.query(
       'SELECT trx_id FROM sms_data WHERE trx_id = $1',
       [trx_id]
@@ -152,7 +153,7 @@ router.post('/sms', async (req, res) => {
     if (checkExist.rows.length > 0) {
       return res.status(409).json({
         status: 'exists',
-        message: 'Transaction ID already exists'
+        message: 'Transaction ID already exists in database'
       });
     }
 
@@ -173,6 +174,68 @@ router.post('/sms', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+
+
+
+
+
+
+
+
+// router.post('/sms', async (req, res) => {
+//   try {
+//     let { trx_id, amount, sender } = req.body;
+
+//     if (!sender) {
+//       return res.status(400).json({ error: "Sender required" });
+//     }
+
+//     // normalize sender (remove spaces, dashes etc)
+//     sender = sender.replace(/[\s-]/g, "");
+
+//     // ❌ BLOCK Bangladeshi personal numbers
+//     const isBDNumber =
+//       /^01[3-9]\d{8}$/.test(sender) ||        // 017XXXXXXXX
+//       /^\+8801[3-9]\d{8}$/.test(sender);     // +88017XXXXXXXX
+
+//     if (isBDNumber) {
+//       return res.status(403).json({
+//         status: "blocked",
+//         message: "Personal BD numbers are not allowed"
+//       });
+//     }
+
+//     // 1. Check if trx exists
+//     const checkExist = await db.query(
+//       'SELECT trx_id FROM sms_data WHERE trx_id = $1',
+//       [trx_id]
+//     );
+
+//     if (checkExist.rows.length > 0) {
+//       return res.status(409).json({
+//         status: 'exists',
+//         message: 'Transaction ID already exists'
+//       });
+//     }
+
+//     // 2. Insert
+//     const result = await db.query(
+//       `INSERT INTO sms_data (trx_id, amount, sender)
+//        VALUES ($1, $2, $3)
+//        RETURNING *`,
+//       [trx_id, amount, sender]
+//     );
+
+//     res.json({
+//       status: 'inserted',
+//       data: result.rows[0]
+//     });
+
+//   } catch (err) {
+//     res.status(500).json({ error: err.message });
+//   }
+// });
 /**
  * 🔹 CREATE TRANSACTION (manual test / bot will use later)
  */
