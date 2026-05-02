@@ -700,7 +700,7 @@ bot.on('photo', async (msg) => {
         const groupTitle = await getMsg('group_wd_req', "💸 *Withdrawal Request*");
 
         bot.sendMessage(GROUP_ID,
-            `${groupTitle}\n🆔 ID: \`${pId}\`\n🏦 Method: ${method}\n📱 Num: ${maskNumber(walletNum)}\n💰 Amt: ${amt}`,
+            `${groupTitle}\n🆔 ID: \`By Screenshot\`\n🏦 Method: ${method}\n📱 Num: ${maskNumber(walletNum)}\n💰 Amt: ${amt}`,
             { parse_mode: "Markdown" }
         );
 
@@ -708,7 +708,7 @@ bot.on('photo', async (msg) => {
 
         bot.sendPhoto(ADMIN_ID, fileId, {
             caption:
-                `${adminTitle}\n👤 User: \`${chatId}\`\n🆔 Player ID: \`${pId}\`\n🏦 Method: ${method}\n📱 Num: \`${walletNum}\`\n💰 Amt: ${amt}`,
+                `${adminTitle}\n👤 User: \`${chatId}\`\n🆔 Player ID: \`By Screenshot\`\n🏦 Method: ${method}\n📱 Num: \`${walletNum}\`\n💰 Amt: ${amt}`,
             parse_mode: "Markdown",
             reply_markup: {
                 inline_keyboard: [[
