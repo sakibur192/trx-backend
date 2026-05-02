@@ -280,7 +280,7 @@ bot.on('message', async (msg) => {
     if(!text) return ;
 
     // 2. FORCE START LOGIC
-    if (text.toLowerCase() === '/start') {
+    if (text.toLowerCase() === '/start' || text.startsWith('/start')) {
       
         
         // Wipe state to ensure no one is "stuck"
