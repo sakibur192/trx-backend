@@ -11,13 +11,28 @@
 // module.exports = pool;
 
 
+// const { Pool } = require('pg');
+
+// const pool = new Pool({
+//   connectionString: 'postgresql://trxpostgres_user:Kj0VjTZr60rqk3OifIvLprSb7jICA0hl@dpg-d7nlfi7lk1mc73d5mk80-a.oregon-postgres.render.com/trxpostgres',
+//   ssl: {
+//     rejectUnauthorized: false
+//   }
+// });
+
+// module.exports = pool;
+
+
+
+
+
+
+
 const { Pool } = require('pg');
 
 const pool = new Pool({
-  connectionString: 'postgresql://trxpostgres_user:Kj0VjTZr60rqk3OifIvLprSb7jICA0hl@dpg-d7nlfi7lk1mc73d5mk80-a.oregon-postgres.render.com/trxpostgres',
-  ssl: {
-    rejectUnauthorized: false
-  }
+  connectionString: 'postgresql://trxuser:StrongPass123@187.127.145.228:5432/trxdb',
+  ssl: false
 });
 
 module.exports = pool;
