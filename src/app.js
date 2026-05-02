@@ -218,53 +218,61 @@ app.get('/admin/settings', async (req, res) => {
     </div>
 
     <!-- BUTTONS -->
-    <div style="
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
+<div style="
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 420px;
+    margin: 10px auto;
+    padding: 0 10px;
+">
+
+    <a href="/admin/images" style="
+        display: block;
+        text-decoration: none;
+        background: #28a745;
+        color: white;
+        padding: 14px;
+        text-align: center;
+        border-radius: 12px;
+        font-weight: 600;
+        border: 1px solid #000;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
     ">
+        🖼 Manage Images
+    </a>
 
-        <a href="/admin/images" style="
-            text-decoration: none;
-            background: #28a745;
-            color: white;
-            padding: 12px;
-            text-align: center;
-            border-radius: 10px;
-            font-weight: 600;
-            border : 1px solid black;
-        ">
-            🖼 Manage Images
-        </a>
+    <a href="/depositreq" style="
+        display: block;
+        text-decoration: none;
+        background: #ffc107;
+        color: #000;
+        padding: 14px;
+        text-align: center;
+        border-radius: 12px;
+        font-weight: 600;
+        border: 1px solid #000;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    ">
+        💰 Deposit Requests
+    </a>
 
+    <a href="/withdrawreq" style="
+        display: block;
+        text-decoration: none;
+        background: #dc3545;
+        color: white;
+        padding: 14px;
+        text-align: center;
+        border-radius: 12px;
+        font-weight: 600;
+        border: 1px solid #000;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    ">
+        💸 Withdraw Requests
+    </a>
 
-        <a href="/depositreq" style="
-            text-decoration: none;
-            background: #ffc107;
-            color: #000;
-            padding: 12px;
-            text-align: center;
-            border-radius: 10px;
-            font-weight: 600;
-            border : 1px solid black;
-        ">
-            💰 Deposit Requests
-        </a>
-
-        <a href="/withdrawreq" style="
-            text-decoration: none;
-            background: #dc3545;
-            color: white;
-            padding: 12px;
-            text-align: center;
-            border-radius: 10px;
-            font-weight: 600;
-            border : 1px solid black;
-        ">
-            💸 Withdraw Requests
-        </a>
-
-    </div>
+</div>
 
 </nav>
 
