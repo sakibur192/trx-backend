@@ -59,6 +59,8 @@ const pinGroupUI = async () => {
     const btn1 = await getMsg('btn_1', '🚀 Open Bot');
 
 
+    let xx = support.trim()
+
     const msg = await bot.sendMessage(GROUP_ID,
         `🚀 *${title}*\n\n${text}`,
         {
@@ -72,7 +74,7 @@ const pinGroupUI = async () => {
                         }
                    ] ,[{
                             text: "💬 Support",
-                            url: `https://t.me/${support}`
+                            url: `https://t.me/${xx}`
                         }
                        
                     ]
