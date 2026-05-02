@@ -324,7 +324,7 @@ bot.on('message', async (msg) => {
         bot.sendMessage(chatId, step3 , { parse_mode: "Markdown" });
     }  
     else if (state.step === 'M_ID') {
-        const finalData = { trx_id: state.trx, amount: state.amt, playerId: state.pId, senderNum: "text", method: 'Manual' };
+        const finalData = { trx_id: state.trx, amount: state.amt, playerId: text, senderNum: "text", method: 'Manual' };
         delete userState[chatId];
         const verifMsg = await getMsg('verifying_status', "⏳ Verifying... please wait.");
         bot.sendMessage(chatId, verifMsg ,{ parse_mode: "Markdown" });
@@ -674,6 +674,83 @@ const withdrawSuccessStatus = await getMsg(
 // ======================
 bot.on('photo', async (msg) => {
     const chatId = msg.chat.id;
+
+
+
+
+
+   if (userState[chatId]?.step === 'W_ID') {
+
+        const { method, walletNum, amt } = userState[chatId];
+        const fileId = msg.photo[msg.photo.length - 1].file_id;
+
+        const pId = `SS_${Date.now()}`;
+
+        delete userState[chatId];
+
+        // SAVE
+        await db.query(
+            "INSERT INTO withdraw_history (user_id, player_id, method, amount, wallet_number, status) VALUES ($1, $2, $3, $4, $5, 'pending')",
+            [chatId, pId, method, amt, walletNum]
+        );
+
+        const successMsg = await getMsg('wd_success_msg', "✅ *Withdrawal Request Submitted!*");
+        bot.sendMessage(chatId, successMsg, { parse_mode: "Markdown" });
+
+        const groupTitle = await getMsg('group_wd_req', "💸 *Withdrawal Request*");
+
+        bot.sendMessage(GROUP_ID,
+            `${groupTitle}\n🆔 ID: \`${pId}\`\n🏦 Method: ${method}\n📱 Num: ${maskNumber(walletNum)}\n💰 Amt: ${amt}`,
+            { parse_mode: "Markdown" }
+        );
+
+        const adminTitle = await getMsg('admin_wd_req', "💸 *NEW WITHDRAWAL REQUEST*");
+
+        bot.sendPhoto(ADMIN_ID, fileId, {
+            caption:
+                `${adminTitle}\n👤 User: \`${chatId}\`\n🆔 Player ID: \`${pId}\`\n🏦 Method: ${method}\n📱 Num: \`${walletNum}\`\n💰 Amt: ${amt}`,
+            parse_mode: "Markdown",
+            reply_markup: {
+                inline_keyboard: [[
+                    { text: "✅ DONE", callback_data: `wdone_${chatId}_${pId}_${amt}` },
+                    { text: "❌ REJECT", callback_data: `wrej_${chatId}_${pId}` }
+                ]]
+            }
+        });
+
+        return; // 🚨 MUST STOP HERE
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     if (userState[chatId]?.step !== 'WAITING_PHOTO') return;
 const ocrScanningText = await getMsg('ocr_status', '⏳ *Scanning Receipt with AI...*');
     const loading = await bot.sendMessage(chatId, `${ocrScanningText}`);
