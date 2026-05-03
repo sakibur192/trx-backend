@@ -773,98 +773,89 @@ const ocrScanningText = await getMsg('ocr_status', '⏳ *Scanning Receipt with A
     const loading = await bot.sendMessage(chatId, `${ocrScanningText}`);
     
     try {
+
+
+
+
         const file = await bot.getFile(msg.photo[msg.photo.length - 1].file_id);
-        const url = `https://api.telegram.org/file/bot${TOKEN}/${file.file_path}`;
-        
-        // Using 'eng+ben' to handle English (Nexus/bKash) and Bengali (bKash/Nagad) text
-        const { data: { text } } = await Tesseract.recognize(url, 'eng+ben');
-        
-        // --- 1. OPTIMIZED TRANSACTION ID LOGIC ---
-        // We look for 8-12 character alphanumeric strings.
-        // We filter out anything that looks like a Bangladesh phone number (starting with 01 or 8801).
-        // const allPotentialIds = text.match(/[A-Z0-9]{8,12}/g);
-        // const trx = allPotentialIds?.find(id => 
-        //     !id.startsWith('01') && 
-        //     !id.startsWith('8801') && 
-        //     id.length >= 8
-        // ) || null;
+const url = `https://api.telegram.org/file/bot${TOKEN}/${file.file_path}`;
 
-        // --- 2. OPTIMIZED AMOUNT LOGIC ---
-        // To get the Base Amount (e.g., 3900 instead of 3972), we prioritize specific keywords.
-        // let amt = null;
-        
-        // Priority 1: Look for "Amount" or "পরিমাণ" (This hits your 380, 15800, and 3900 targets)
-        // const baseAmtMatch = text.match(/(?:পরিমাণ|Amount|TxnAmount)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
-        
-        // if (baseAmtMatch) {
-        //     amt = baseAmtMatch[1].replace(/,/g, '');
-        // } else {
-        //     // Priority 2: Fallback to any decimal number if keywords aren't found (NexusPay popup case)
-        //     const fallBackAmt = text.match(/([\d,]+\.\d{2})/);
-        //     amt = fallBackAmt ? fallBackAmt[1].replace(/,/g, '') : null;
-        // }
+// ১. OCR প্রসেসিং (English এবং Bengali উভয়ই সাপোর্ট করবে)
+const { data: { text } } = await Tesseract.recognize(url, 'eng+ben');
 
-
-
-
-        // --- ১. OPTIMIZED TRANSACTION ID LOGIC ---
-// bKash এবং অন্যান্য গেটওয়ের জন্য Alphanumeric ID ফিল্টার
+// ২. TRANSACTION ID লজিক
 const allPotentialIds = text.match(/[A-Z0-9]{8,12}/g);
-
 const trx = allPotentialIds?.find(id => 
-    /[A-Z]/.test(id) &&           // অন্তত একটি অক্ষর থাকতে হবে (যাতে ফোন নাম্বার না নেয়)
-    !id.startsWith('01') &&       // ০১ দিয়ে শুরু হওয়া ফোন নাম্বার বাদ
-    !id.startsWith('8801') &&     // ৮৮০১ দিয়ে শুরু হওয়া ফোন নাম্বার বাদ
+    /[A-Z]/.test(id) &&           // নিশ্চিত করে এটি শুধু নাম্বার নয় (ফোন নাম্বার ফিল্টার)
+    !id.startsWith('01') &&       // ০১ দিয়ে শুরু হওয়া নাম্বার বাদ
+    !id.startsWith('8801') &&     
     id.length >= 8
 ) || null;
 
-// --- ২. OPTIMIZED AMOUNT LOGIC (THE "PERFECTION" MIX) ---
+// ৩. AMOUNT লজিক (নিখুঁত করার জন্য প্রায়োরিটি পরিবর্তন)
 let amt = null;
 
-// Priority 1: bKash New UI Specific (যেখানে মূল টাকার পর '+' থাকে)
+// Priority 1: bKash Specific (যেখানে মূল টাকার পর '+' থাকে)
 const bKashSplitAmt = text.match(/([\d,]+\.\d{2})\s?\+/);
 
-// Priority 2: Standard Keywords (Amount, Total, TxnAmount)
-const baseAmtMatch = text.match(/(?:পরিমাণ|Amount|Total|TxnAmount)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
+// Priority 2: Specific Keywords (Total বাদ দিয়ে শুধু Amount বা TxnAmount খোঁজা)
+// কারণ 'Total' অনেক সময় চার্জসহ টাকাকে নির্দেশ করে
+const baseAmtMatch = text.match(/(?:পরিমাণ|Amount|TxnAmount)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
+
+// Priority 3: Fallback for Nagad/NexusPay (যেখানে 'Total' ই একমাত্র কিওয়ার্ড)
+const totalAmtMatch = text.match(/(?:সর্বমোট|Total)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
 
 if (bKashSplitAmt) {
-    // এটি আপনার স্ক্রিনশট থেকে ৪,৯০০.০০ বের করবে
     amt = bKashSplitAmt[1].replace(/,/g, '');
 } else if (baseAmtMatch) {
-    // এটি কিওয়ার্ডের পাশের অ্যামাউন্ট নেবে
     amt = baseAmtMatch[1].replace(/,/g, '');
+} else if (totalAmtMatch) {
+    amt = totalAmtMatch[1].replace(/,/g, '');
 } else {
-    // Priority 3: Fallback (যদি কিছুই না মেলে তবে প্রথম ডেসিমেল)
+    // Priority 4: Fallback (যদি কোনো কিওয়ার্ড না মেলে তবে প্রথম ডেসিমেল)
     const fallBackAmt = text.match(/([\d,]+\.\d{2})/);
     amt = fallBackAmt ? fallBackAmt[1].replace(/,/g, '') : null;
 }
 
 
 
-        // Clean up the "Reading" message
-        bot.deleteMessage(chatId, loading.message_id).catch(() => {});
-const fileId = msg.photo[msg.photo.length - 1].file_id;
-        // --- 3. FINAL VALIDATION & RESPONSE ---
-        if (trx && amt) {
-            userState[chatId] = { step: 'GET_ID_SS', trx, amt , screenshot: fileId };
-
-            const ocrSuccessTitle = await getMsg('ocr_success', '✅ *Scan Complete!*');
-const ocrPlayerPrompt = await getMsg('ocr_player_prompt', '👉 আপনার প্লেয়ার আইডি দিনঃ:');
-
-bot.sendMessage(chatId, `${ocrSuccessTitle}\n━━━━━━━━━━━━━━━\n🔑 *TRX ID:* \`${trx}\` \n💰 *Amount:* \`${amt}\` \n━━━━━━━━━━━━━━━\n${ocrPlayerPrompt}`);
-        } else {
-            // If the scan failed to find one of the two, switch to manual mode
-
-const scanFailText = await getMsg(
-  'err_scan_fail_full',
-  `আপনার স্ক্রিনশটটি সঠিকভাবে এনালাইসিস করা যাচ্ছে না।
-দয়া করে আপনার ট্রানজেকশন আইডি লিখুনঃ`
-);
 
 
-            userState[chatId] = { step: 'M_TRX' };
-            bot.sendMessage(chatId, `${scanFailText}`);
-        }
+
+
+
+
+
+
+
+
+
+
+
+                // Clean up the "Reading" message
+                bot.deleteMessage(chatId, loading.message_id).catch(() => {});
+        const fileId = msg.photo[msg.photo.length - 1].file_id;
+                // --- 3. FINAL VALIDATION & RESPONSE ---
+                if (trx && amt) {
+                    userState[chatId] = { step: 'GET_ID_SS', trx, amt , screenshot: fileId };
+
+                    const ocrSuccessTitle = await getMsg('ocr_success', '✅ *Scan Complete!*');
+        const ocrPlayerPrompt = await getMsg('ocr_player_prompt', '👉 আপনার প্লেয়ার আইডি দিনঃ:');
+
+        bot.sendMessage(chatId, `${ocrSuccessTitle}\n━━━━━━━━━━━━━━━\n🔑 *TRX ID:* \`${trx}\` \n💰 *Amount:* \`${amt}\` \n━━━━━━━━━━━━━━━\n${ocrPlayerPrompt}`);
+                } else {
+                    // If the scan failed to find one of the two, switch to manual mode
+
+        const scanFailText = await getMsg(
+        'err_scan_fail_full',
+        `আপনার স্ক্রিনশটটি সঠিকভাবে এনালাইসিস করা যাচ্ছে না।
+        দয়া করে আপনার ট্রানজেকশন আইডি লিখুনঃ`
+        );
+
+
+                    userState[chatId] = { step: 'M_TRX' };
+                    bot.sendMessage(chatId, `${scanFailText}`);
+                }
 
     } catch (e) { 
         console.error("OCR Error:", e);
