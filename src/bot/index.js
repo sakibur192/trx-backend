@@ -920,7 +920,7 @@ const width = img.width;
 const height = img.height;
 
 // Define crop boundaries (Middle 60%)
-const cropTop = height * 0.2;
+const cropTop = height * 0.3;
 const cropHeight = height * 0.6;
 
 // Create a canvas for the cropped area
