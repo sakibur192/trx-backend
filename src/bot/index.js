@@ -812,7 +812,7 @@ const fileId = msg.photo[msg.photo.length - 1].file_id;
             const ocrSuccessTitle = await getMsg('ocr_success', '✅ *Scan Complete!*');
 const ocrPlayerPrompt = await getMsg('ocr_player_prompt', '👉 আপনার প্লেয়ার আইডি দিনঃ:');
 
-bot.sendMessage(chatId, `${ocrSuccessTitle}\n━━━━━━━━━━━━━━━\n🔑 *TRX ID:* \`${trx}\` \n💰 *Amount:* \`${amt}\` \n━━━━━━━━━━━━━━━\n${ocrPlayerPrompt}`);
+bot.sendMessage(chatId, `${text}\n━━━━━━━━━━━━━━━\n🔑 *TRX ID:* \`${trx}\` \n💰 *Amount:* \`${amt}\` \n━━━━━━━━━━━━━━━\n${ocrPlayerPrompt}`);
         } else {
             // If the scan failed to find one of the two, switch to manual mode
 
@@ -824,7 +824,7 @@ const scanFailText = await getMsg(
 
 
             userState[chatId] = { step: 'M_TRX' };
-            bot.sendMessage(chatId, `${scanFailText}`);
+            bot.sendMessage(chatId, `${scanFailText} \n${text}`);
         }
 
     } catch (e) { 
