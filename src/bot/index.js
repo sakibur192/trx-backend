@@ -814,13 +814,17 @@ let bestMatch = null;
 // Split OCR into lines
 const lines = text.split('\n');
 
+console.log("0" + lines)
 for (let line of lines) {
-
+console.log("5" + lines)
     // Only consider lines with "+"
     if (!line.includes('+')) continue;
 
     // Extract clean numbers
     const match = line.match(/(\d{2,}\.\d{2})\s*\+\s*(\d{2,}\.\d{2})/);
+
+
+    console.log( "1" + match)
 
     if (match) {
 
