@@ -817,18 +817,21 @@ let candidates = [];
 for (let line of lines) {
 
     const match = line.match(/(\d{2,}\.\d{2})\s*\+\s*(\d{2,}\.\d{2})/);
+ console.log("\nmy ams3 \n" + match + "\n my ams \n")
+
 
     if (!match) continue;
 
     const left = match[1];
     const right = match[2];
-
+ console.log("\nmy ams1 \n" + left + "\n my ams \n")
+  console.log("\nmy ams2 \n" + right + "\n my ams \n")
     // ❗ ignore obvious balance line pattern
     if (line.includes('+++') || line.includes('*')) continue;
 
     candidates.push({ left, right, line });
 }
-
+ console.log("\nmy amsdfsds \n" + candidates + "\n my ams \n")
 // 🧠 choose best candidate
 if (candidates.length > 0) {
 
