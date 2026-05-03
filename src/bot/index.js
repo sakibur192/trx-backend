@@ -5,14 +5,123 @@ const fs = require("fs");
 const path = require("path");
 
 
-const axios = require('axios');
-const FormData = require('form-data');
-const sharp = require('sharp');
 
-// আপনার কনফিগারেশন
-const OCR_API_KEY = 'K83723389188957';
-const MAX_SIZE_MB = 1;
-const GOOGLE_VISION_API_KEY = 'AIzaSyA8W3qJ-pjz5iSCwEvTZKcDkZBaQ_eTW0I';
+
+const axios = require('axios'); // ফাইল বাফার ডাউনলোড করার জন্য
+
+// টেলিগ্রাম ফাইল পাথ থেকে ইমেজ ডাউনলোড করার লজিক
+// const url = `https://api.telegram.org/file/bot${TOKEN}/${file.file_path}`;
+
+// let amt = null;
+// let trx = null;
+
+// try {
+//     // ১. ইউআরএল থেকে ইমেজটিকে বাফার হিসেবে ডাউনলোড করা
+//     const response = await axios.get(url, { responseType: 'arraybuffer' });
+//     const imageBuffer = Buffer.from(response.data);
+
+//     // ২. বাফারটি আপনার এক্সট্রাকশন ফাংশনে পাঠানো
+//     const extractedData = await extractBestData(imageBuffer);
+
+//     // ৩. সরাসরি ভেরিয়েবলে ডাটা সেভ করা
+//     amt = extractedData.amt;
+//     trx = extractedData.trx;
+
+//     console.log(`Extracted -> Amount: ${amt}, TrxID: ${trx}`);
+
+// } catch (error) {
+//     console.error("Extraction failed:", error.message);
+//     amt = null;
+//     trx = null;
+// }
+
+// // এখন আপনার কাছে amt এবং trx ভেরিয়েবল দুটি ব্যবহারের জন্য প্রস্তুত
+
+
+
+// async function extractBestData(imageBuffer) {
+//     try {
+//         const base64Image = imageBuffer.toString('base64');
+//         const url = `https://vision.googleapis.com/v1/images:annotate?key=${GOOGLE_VISION_API_KEY}`;
+
+//         const requestData = {
+//             requests: [{
+//                 image: { content: base64Image },
+//                 features: [{ type: 'TEXT_DETECTION' }]
+//             }]
+//         };
+
+//         const response = await axios.post(url, requestData);
+//         const fullText = response.data.responses[0]?.fullTextAnnotation?.text || "";
+
+//         let amt = null;
+//         let trx = null;
+
+//         // ১. ট্রানজেকশন আইডি (TrxID) ফিল্টারিং
+//         // নেক্সাস পে (NexusPay) এর ১০ ডিজিটের আইডি আগে চেক করা
+//         const nexusMatch = fullText.match(/Txnld:(\d{10})/i);
+//         if (nexusMatch) {
+//             trx = nexusMatch[1];
+//         } else {
+//             // বিকাশ/নগদ এর আলফানিউমেরিক আইডি (৮-১২ ক্যারেক্টার)
+//             const idRegex = /\b([A-Z0-9]{8,12})\b/g;
+//             const matches = fullText.match(idRegex) || [];
+//             trx = matches.find(id => 
+//                 /[A-Z]/.test(id) && // অন্তত একটি অক্ষর থাকতে হবে
+//                 !/^(TOTAL|BALANCE|TIME|DATE|AM|PM)$/i.test(id) && // সাধারণ শব্দ বাদ
+//                 !id.startsWith('01') // মোবাইল নম্বর বাদ
+//             );
+//         }
+
+//         // ২. আসল অ্যামাউন্ট (Actual Amount) বের করা
+//         // আমরা "পরিমাণ", "টাকা" বা "Amount" কিউওয়ার্ডের পাশের সংখ্যাটিই নেব
+//         const primaryAmountMatch = fullText.match(/(?:Amount|TxnAmount|পরিমাণ|টাকা|অ্যামাউন্ট|Total)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
+        
+//         if (primaryAmountMatch) {
+//             amt = primaryAmountMatch[1].replace(/,/g, '');
+//         } else {
+//             // বিকাশ ইনবক্স বা ক্যাশ আউটের ক্ষেত্রে (যেখানে '+' চিহ্ন থাকে)
+//             const bKashInboxMatch = fullText.match(/\+\s?[৳Tt]([\d,]+\.\d{2})/);
+//             if (bKashInboxMatch) {
+//                 amt = bKashInboxMatch[1].replace(/,/g, '');
+//             } else {
+//                 // যদি কিছুই না পাওয়া যায়, তবে সব ডেসিমেল নাম্বারের মধ্য থেকে ফিল্টার করা
+//                 const numbers = fullText.match(/\d{1,3}(?:,\d{3})*(?:\.\d{2})/g) || [];
+//                 const candidates = numbers.map(n => parseFloat(n.replace(/,/g, '')));
+                
+//                 // নেক্সাস পে বা বিকাশে ফি (Fee) এবং ভ্যাট (VAT) সাধারণত খুব ছোট হয়। 
+//                 // আর ব্যালেন্স সব সময় অ্যামাউন্টের চেয়ে অনেক বড় হয় না, কিন্তু কিউওয়ার্ড ছাড়া এটি বের করা কঠিন।
+//                 // তাই আমরা 'Fee' বা 'Charge' শব্দগুলোর পজিশন চেক করে সেগুলো বাদ দিচ্ছি।
+//                 amt = candidates.find(c => c > 10 && !fullText.includes(`Charge: ${c}`) && !fullText.includes(`Fee: ${c}`)) || null;
+//                 if (amt) amt = amt.toString();
+//             }
+//         }
+
+//         return { 
+//             amt: amt ? amt.trim() : null, 
+//             trx: trx ? trx.trim() : null 
+//         };
+
+//     } catch (error) {
+//         console.error("Google Vision Error:", error.message);
+//         return { amt: null, trx: null };
+//     }
+// }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // ======================
 // CONFIG
 // ======================
@@ -28,6 +137,24 @@ const maskNumber = (num) => {
     if (!num || num.length < 7) return "Unknown";
     return num.substring(0, 4) + "****" + num.slice(-3);
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -670,155 +797,12 @@ const withdrawSuccessStatus = await getMsg(
 
 
 
-async function extractTransactionData(imageUrl) {
-    try {
-        // ১. ইমেজ ডাউনলোড এবং রিসাইজ (১ এমবি লিমিট হ্যান্ডলিং)
-        const imageRes = await axios.get(imageUrl, { responseType: 'arraybuffer' });
-        let buffer = Buffer.from(imageRes.data);
-
-        // সাইজ ১ এমবির বেশি হলে কোয়ালিটি কমিয়ে ছোট করা
-        if (buffer.length > 1024 * 1024) {
-            buffer = await sharp(buffer)
-                .resize(1200) 
-                .jpeg({ quality: 85 })
-                .toBuffer();
-        }
-
-        // ২. OCR.space এপিআই কল
-        const form = new FormData();
-        form.append('apikey', OCR_API_KEY);
-        form.append('OCREngine', '2'); // ঝাপসা ছবির জন্য অপরিহার্য
-        form.append('file', buffer, { filename: 'image.jpg' });
-
-        const res = await axios.post('https://api.ocr.space/parse/image', form, {
-            headers: form.getHeaders()
-        });
-
-        const text = res.data.ParsedResults?.[0]?.ParsedText || "";
-        console.log("OCR Text:", text); // ডিবাগিং এর জন্য
-
-        // ৩. ডাটা এক্সট্রাকশন (আপনার দেওয়া লজিক সহ উন্নত ভার্সন)
-        return parseFinalData(text);
-
-    } catch (err) {
-        console.error("OCR Error:", err);
-        return { trx: null, amt: null };
-    }
-}
-
-function parseFinalData(text) {
-    // ১. ট্রানজেকশন আইডি খোঁজা
-    // বিকাশ/নগদ আইডি (যেমন: DE34R1DIS2) অথবা নেক্সাস পে আইডি (যেমন: 6408688276)
-    const idRegex = /\b([A-Z0-9]{8,12})\b/g;
-    const matches = text.match(idRegex) || [];
-    
-    let trx = matches.find(id => 
-        (/[A-Z]/.test(id) && !id.startsWith('01') && id.length >= 8) || // বিকাশ/নগদ আলফানিউমেরিক
-        (/^\d{10}$/.test(id)) // নেক্সাস পে ১০ ডিজিটের আইডি
-    ) || null;
-
-    // ২. অ্যামাউন্ট খোঁজা
-    let amt = null;
-
-    // কিউওয়ার্ড ভিত্তিক সার্চ (সবথেকে নির্ভুল)
-    const priorityMatch = text.match(/(?:Amount|TxnAmount|পরিমাণ|অ্যামাউন্ট|Total)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
-    
-    if (priorityMatch) {
-        amt = priorityMatch[1].replace(/,/g, '');
-    } else {
-        // যদি কিউওয়ার্ড না পায় (যেমন ৮ নং বা ২ নং ছবির ক্ষেত্রে), তবে সব সংখ্যা বের করা
-        // আমরা শুধু পজিটিভ ডেসিমেল নাম্বারগুলো নেব
-        const allNumbers = text.match(/\d{1,3}(?:,\d{3})*(?:\.\d{2})/g);
-        
-        if (allNumbers) {
-            const cleanedAmts = allNumbers
-                .map(n => parseFloat(n.replace(/,/g, '')))
-                .filter(n => n > 10); // খুব ছোট সংখ্যা (যেমন VAT বা Fee) বাদ দিতে
-
-            // সাধারণত ট্রানজেকশন অ্যামাউন্ট ব্যালেন্সের চেয়ে বড় হয় না, 
-            // কিন্তু চার্জের চেয়ে বড় হয়। তাই আমরা দ্বিতীয় সর্বোচ্চ বা 
-            // লজিক্যালি ফিল্টার করা সংখ্যাটি নিতে পারি।
-            // তবে বেশিরভাগ স্ক্রিনশটে বড় সংখ্যাটিই পেমেন্ট অ্যামাউন্ট হয়।
-            amt = cleanedAmts.length > 0 ? Math.max(...cleanedAmts).toString() : null;
-        }
-    }
-
-    // আপনার চাহিদা অনুযায়ী ভেরিয়েবলে সেভ করা
-    return { 
-        trx: trx ? trx : null, 
-        amt: amt ? amt : null 
-    };
-}
 
 
-async function extractBestData(imageBuffer) {
-    try {
-        const base64Image = imageBuffer.toString('base64');
-        const url = `https://vision.googleapis.com/v1/images:annotate?key=${GOOGLE_VISION_API_KEY}`;
 
-        const requestData = {
-            requests: [{
-                image: { content: base64Image },
-                features: [{ type: 'TEXT_DETECTION' }]
-            }]
-        };
 
-        const response = await axios.post(url, requestData);
-        const fullText = response.data.responses[0]?.fullTextAnnotation?.text || "";
 
-        let amt = null;
-        let trx = null;
 
-        // ১. ট্রানজেকশন আইডি (TrxID) ফিল্টারিং
-        // নেক্সাস পে (NexusPay) এর ১০ ডিজিটের আইডি আগে চেক করা
-        const nexusMatch = fullText.match(/Txnld:(\d{10})/i);
-        if (nexusMatch) {
-            trx = nexusMatch[1];
-        } else {
-            // বিকাশ/নগদ এর আলফানিউমেরিক আইডি (৮-১২ ক্যারেক্টার)
-            const idRegex = /\b([A-Z0-9]{8,12})\b/g;
-            const matches = fullText.match(idRegex) || [];
-            trx = matches.find(id => 
-                /[A-Z]/.test(id) && // অন্তত একটি অক্ষর থাকতে হবে
-                !/^(TOTAL|BALANCE|TIME|DATE|AM|PM)$/i.test(id) && // সাধারণ শব্দ বাদ
-                !id.startsWith('01') // মোবাইল নম্বর বাদ
-            );
-        }
-
-        // ২. আসল অ্যামাউন্ট (Actual Amount) বের করা
-        // আমরা "পরিমাণ", "টাকা" বা "Amount" কিউওয়ার্ডের পাশের সংখ্যাটিই নেব
-        const primaryAmountMatch = fullText.match(/(?:Amount|TxnAmount|পরিমাণ|টাকা|অ্যামাউন্ট|Total)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
-        
-        if (primaryAmountMatch) {
-            amt = primaryAmountMatch[1].replace(/,/g, '');
-        } else {
-            // বিকাশ ইনবক্স বা ক্যাশ আউটের ক্ষেত্রে (যেখানে '+' চিহ্ন থাকে)
-            const bKashInboxMatch = fullText.match(/\+\s?[৳Tt]([\d,]+\.\d{2})/);
-            if (bKashInboxMatch) {
-                amt = bKashInboxMatch[1].replace(/,/g, '');
-            } else {
-                // যদি কিছুই না পাওয়া যায়, তবে সব ডেসিমেল নাম্বারের মধ্য থেকে ফিল্টার করা
-                const numbers = fullText.match(/\d{1,3}(?:,\d{3})*(?:\.\d{2})/g) || [];
-                const candidates = numbers.map(n => parseFloat(n.replace(/,/g, '')));
-                
-                // নেক্সাস পে বা বিকাশে ফি (Fee) এবং ভ্যাট (VAT) সাধারণত খুব ছোট হয়। 
-                // আর ব্যালেন্স সব সময় অ্যামাউন্টের চেয়ে অনেক বড় হয় না, কিন্তু কিউওয়ার্ড ছাড়া এটি বের করা কঠিন।
-                // তাই আমরা 'Fee' বা 'Charge' শব্দগুলোর পজিশন চেক করে সেগুলো বাদ দিচ্ছি।
-                amt = candidates.find(c => c > 10 && !fullText.includes(`Charge: ${c}`) && !fullText.includes(`Fee: ${c}`)) || null;
-                if (amt) amt = amt.toString();
-            }
-        }
-
-        return { 
-            amt: amt ? amt.trim() : null, 
-            trx: trx ? trx.trim() : null 
-        };
-
-    } catch (error) {
-        console.error("Google Vision Error:", error.message);
-        return { amt: null, trx: null };
-    }
-}
 
 
 
@@ -925,62 +909,98 @@ const ocrScanningText = await getMsg('ocr_status', '⏳ *Scanning Receipt with A
     const loading = await bot.sendMessage(chatId, `${ocrScanningText}`);
     
     try {
-
-
-
-
         const file = await bot.getFile(msg.photo[msg.photo.length - 1].file_id);
-const url = `https://api.telegram.org/file/bot${TOKEN}/${file.file_path}`;
+        const url = `https://api.telegram.org/file/bot${TOKEN}/${file.file_path}`;
+        
+        // Using 'eng+ben' to handle English (Nexus/bKash) and Bengali (bKash/Nagad) text
+        const { data: { text } } = await Tesseract.recognize(url, 'eng+ben');
+        
+        // --- 1. OPTIMIZED TRANSACTION ID LOGIC ---
+        // We look for 8-12 character alphanumeric strings.
+        // We filter out anything that looks like a Bangladesh phone number (starting with 01 or 8801).
+        // const allPotentialIds = text.match(/[A-Z0-9]{8,12}/g);
+        // const trx = allPotentialIds?.find(id => 
+        //     !id.startsWith('01') && 
+        //     !id.startsWith('8801') && 
+        //     id.length >= 8
+        // ) || null;
+
+        // --- 2. OPTIMIZED AMOUNT LOGIC ---
+        // To get the Base Amount (e.g., 3900 instead of 3972), we prioritize specific keywords.
+        // let amt = null;
+        
+        // Priority 1: Look for "Amount" or "পরিমাণ" (This hits your 380, 15800, and 3900 targets)
+        // const baseAmtMatch = text.match(/(?:পরিমাণ|Amount|TxnAmount)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
+        
+        // if (baseAmtMatch) {
+        //     amt = baseAmtMatch[1].replace(/,/g, '');
+        // } else {
+        //     // Priority 2: Fallback to any decimal number if keywords aren't found (NexusPay popup case)
+        //     const fallBackAmt = text.match(/([\d,]+\.\d{2})/);
+        //     amt = fallBackAmt ? fallBackAmt[1].replace(/,/g, '') : null;
+        // }
 
 
+
+
+        // --- ১. OPTIMIZED TRANSACTION ID LOGIC ---
+// bKash এবং অন্যান্য গেটওয়ের জন্য Alphanumeric ID ফিল্টার
+const allPotentialIds = text.match(/[A-Z0-9]{8,12}/g);
+
+const trx = allPotentialIds?.find(id => 
+    /[A-Z]/.test(id) &&           // অন্তত একটি অক্ষর থাকতে হবে (যাতে ফোন নাম্বার না নেয়)
+    !id.startsWith('01') &&       // ০১ দিয়ে শুরু হওয়া ফোন নাম্বার বাদ
+    !id.startsWith('8801') &&     // ৮৮০১ দিয়ে শুরু হওয়া ফোন নাম্বার বাদ
+    id.length >= 8
+) || null;
+
+// --- ২. OPTIMIZED AMOUNT LOGIC (THE "PERFECTION" MIX) ---
 let amt = null;
-let trx = null;
 
-try {
-    // ১. ইউআরএল থেকে ইমেজটিকে বাফার হিসেবে ডাউনলোড করা
-    const response = await axios.get(url, { responseType: 'arraybuffer' });
-    const imageBuffer = Buffer.from(response.data);
+// Priority 1: bKash New UI Specific (যেখানে মূল টাকার পর '+' থাকে)
+const bKashSplitAmt = text.match(/([\d,]+\.\d{2})\s?\+/);
 
-    // ২. বাফারটি আপনার এক্সট্রাকশন ফাংশনে পাঠানো
-    const extractedData = await extractBestData(imageBuffer);
+// Priority 2: Standard Keywords (Amount, Total, TxnAmount)
+const baseAmtMatch = text.match(/(?:পরিমাণ|Amount|Total|TxnAmount)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
 
-    // ৩. সরাসরি ভেরিয়েবলে ডাটা সেভ করা
-    amt = extractedData.amt;
-    trx = extractedData.trx;
-
-    console.log(`Extracted -> Amount: ${amt}, TrxID: ${trx}`);
-
-} catch (error) {
-    console.error("Extraction failed:", error.message);
-    amt = null;
-    trx = null;
+if (bKashSplitAmt) {
+    // এটি আপনার স্ক্রিনশট থেকে ৪,৯০০.০০ বের করবে
+    amt = bKashSplitAmt[1].replace(/,/g, '');
+} else if (baseAmtMatch) {
+    // এটি কিওয়ার্ডের পাশের অ্যামাউন্ট নেবে
+    amt = baseAmtMatch[1].replace(/,/g, '');
+} else {
+    // Priority 3: Fallback (যদি কিছুই না মেলে তবে প্রথম ডেসিমেল)
+    const fallBackAmt = text.match(/([\d,]+\.\d{2})/);
+    amt = fallBackAmt ? fallBackAmt[1].replace(/,/g, '') : null;
 }
 
 
-                // Clean up the "Reading" message
-                bot.deleteMessage(chatId, loading.message_id).catch(() => {});
-        const fileId = msg.photo[msg.photo.length - 1].file_id;
-                // --- 3. FINAL VALIDATION & RESPONSE ---
-                if (trx && amt) {
-                    userState[chatId] = { step: 'GET_ID_SS', trx, amt , screenshot: fileId };
 
-                    const ocrSuccessTitle = await getMsg('ocr_success', '✅ *Scan Complete!*');
-        const ocrPlayerPrompt = await getMsg('ocr_player_prompt', '👉 আপনার প্লেয়ার আইডি দিনঃ:');
+        // Clean up the "Reading" message
+        bot.deleteMessage(chatId, loading.message_id).catch(() => {});
+const fileId = msg.photo[msg.photo.length - 1].file_id;
+        // --- 3. FINAL VALIDATION & RESPONSE ---
+        if (trx && amt) {
+            userState[chatId] = { step: 'GET_ID_SS', trx, amt , screenshot: fileId };
 
-        bot.sendMessage(chatId, `${ocrSuccessTitle}\n━━━━━━━━━━━━━━━\n🔑 *TRX ID:* \`${trx}\` \n💰 *Amount:* \`${amt}\` \n━━━━━━━━━━━━━━━\n${ocrPlayerPrompt}`);
-                } else {
-                    // If the scan failed to find one of the two, switch to manual mode
+            const ocrSuccessTitle = await getMsg('ocr_success', '✅ *Scan Complete!*');
+const ocrPlayerPrompt = await getMsg('ocr_player_prompt', '👉 আপনার প্লেয়ার আইডি দিনঃ:');
 
-        const scanFailText = await getMsg(
-        'err_scan_fail_full',
-        `আপনার স্ক্রিনশটটি সঠিকভাবে এনালাইসিস করা যাচ্ছে না।
-        দয়া করে আপনার ট্রানজেকশন আইডি লিখুনঃ`
-        );
+bot.sendMessage(chatId, `${ocrSuccessTitle}\n━━━━━━━━━━━━━━━\n🔑 *TRX ID:* \`${trx}\` \n💰 *Amount:* \`${amt}\` \n━━━━━━━━━━━━━━━\n${ocrPlayerPrompt}`);
+        } else {
+            // If the scan failed to find one of the two, switch to manual mode
+
+const scanFailText = await getMsg(
+  'err_scan_fail_full',
+  `আপনার স্ক্রিনশটটি সঠিকভাবে এনালাইসিস করা যাচ্ছে না।
+দয়া করে আপনার ট্রানজেকশন আইডি লিখুনঃ`
+);
 
 
-                    userState[chatId] = { step: 'M_TRX' };
-                    bot.sendMessage(chatId, `${scanFailText}`);
-                }
+            userState[chatId] = { step: 'M_TRX' };
+            bot.sendMessage(chatId, `${scanFailText}`);
+        }
 
     } catch (e) { 
         console.error("OCR Error:", e);
