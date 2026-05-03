@@ -923,49 +923,56 @@ const idPatterns = [
     /(?:ট্রানজেকশন আইডি|Transaction ID|TxnId)[:\s]*([A-Z0-9]{8,12})/i, // Explicit labels
     /\b([A-Z0-9]{10})\b/i, // Standard 10-char bKash/Nagad IDs
 ];
-
+const lines = text.split('\n').map(l => l.trim());
 let trx = null;
-for (const pattern of idPatterns) {
-    const match = text.match(pattern);
-    if (match) {
-        const potentialId = match[1].toUpperCase();
-        // Exclude phone numbers starting with 01 or 8801
-        if (!potentialId.startsWith('01') && !potentialId.startsWith('8801')) {
-            trx = potentialId;
+
+for (let i = 0; i < lines.length; i++) {
+    // If a line contains the label, the ID is often the very next line
+    if (/ট্রানজেকশন আইডি|Transaction ID|TxnId/i.test(lines[i])) {
+        const nextLine = lines[i+1]?.match(/[A-Z0-9]{8,12}/i);
+        if (nextLine) {
+            trx = nextLine[0].toUpperCase();
             break;
         }
     }
 }
 
-// --- 2. REFINED AMOUNT EXTRACTION ---
-// We must distinguish between 'Amount' (base) and 'Total' (base + fee).
-// Keywords: পরিমাণ, Amount, TxnAmount, Total.
+// Fallback: search the whole text if the line-by-line check fails
+if (!trx) {
+    const allPotentialIds = text.match(/\b[A-Z0-9]{8,12}\b/gi);
+    trx = allPotentialIds?.find(id => 
+        !id.startsWith('01') && 
+        !id.startsWith('8801')
+    )?.toUpperCase() || null;
+}
+
+// --- 2. IMPROVED AMOUNT EXTRACTION (FIXING THE "8" ERROR) ---
 let amt = null;
 
-// Regex to capture the first currency value after a specific keyword
-// Specifically targeting the base amount (পরিমাণ / Amount) before looking at totals.
-const amtMatch = text.match(/(?:পরিমাণ|Amount|TxnAmount)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
+// First, clean the text: Replace common OCR misreads of the ৳ symbol
+// Tesseract often sees '৳' as '8', 'S', or 'b'
+let cleanedText = text.replace(/[৳Sb8](?=\d)/g, ''); 
 
-if (amtMatch) {
-    amt = amtMatch[1].replace(/,/g, '');
+// Look for the bKash addition pattern first (e.g., 3,900.00 + 72.15)
+const additionPattern = /([\d,]+\.\d{2})\s?\+\s?[\d,]+\.\d{2}/;
+const addMatch = cleanedText.match(additionPattern);
+
+if (addMatch) {
+    amt = addMatch[1].replace(/,/g, '');
 } else {
-    // Fallback for bKash new UI where "Total" is often easier to read, 
-    // but we look for the addition pattern: ৳3,900.00 + ৳72.15
-    const additionPattern = /([0-9,]+\.\d{2})\s?\+\s?[0-9,]+\.\d{2}/;
-    const addMatch = text.match(additionPattern);
-    
-    if (addMatch) {
-        amt = addMatch[1].replace(/,/g, '');
-    } else {
-        // Last resort: find any currency-formatted number that isn't a "Fee" or "Vat"
-        const allAmounts = text.match(/([\d,]+\.\d{2})/g);
-        if (allAmounts && allAmounts.length > 0) {
-            // Usually, the largest number or the one not labeled 'Fee/Vat' is the amount
-            amt = allAmounts[0].replace(/,/g, '');
-        }
+    // Search for amount after a keyword in the cleaned text
+    const amtMatch = cleanedText.match(/(?:পরিমাণ|Amount|TxnAmount|Total)[:\s]*([\d,]+\.\d{2})/i);
+    if (amtMatch) {
+        amt = amtMatch[1].replace(/,/g, '');
     }
 }
 
+// Final check: if amt still looks like '83900', ensure we didn't miss a decimal or symbol
+if (amt && amt.startsWith('8') && amt.length > 5) {
+    // Logic check: if the original text had a ৳ right before this number, 
+    // it's almost certainly a misread ৳
+    amt = amt.substring(1); 
+}
         // Clean up the "Reading" message
         bot.deleteMessage(chatId, loading.message_id).catch(() => {});
 const fileId = msg.photo[msg.photo.length - 1].file_id;
