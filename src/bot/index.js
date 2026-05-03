@@ -809,13 +809,17 @@ const trx = allPotentialIds?.find(id =>
 
 let amt = null;
 
+const strictPlus = text.match(/(\d{2,}\.\d{2})\s+\+\s+(\d{2,}\.\d{2})/);
 
+if (strictPlus) {
+    amt = strictPlus[1]; // always take left side
+}
 
 // ধাপ ১: সরাসরি '+' চিহ্নের বাম পাশের ডেসিমেল সংখ্যাটি খোঁজা (বিকাশ চার্জ ফরম্যাট)
 
 // এটি ৫০.০০ + ০.৯২ থেকে সরাসরি ৫০.০০ নিবে, ৫০.৯২ এর দিকে তাকাবেই না।
 
-const plusMatch = text.match(/([\d,]+\.\d{2})\s*\+/);
+const plusMatch = !amt ? text.match(/([\d,]+\.\d{2})\s*\+/) : null;
 
 
 
