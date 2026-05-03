@@ -707,47 +707,48 @@ async function extractTransactionData(imageUrl) {
 }
 
 function parseFinalData(text) {
-    // --- TRANSACTION ID লজিক ---
-    // নগদ/বিকাশ আইডি সাধারণত ৮-১২ অক্ষরের হয় এবং তাতে ইংরেজি বড় হাতের অক্ষর থাকে
+    // ১. ট্রানজেকশন আইডি খোঁজা
+    // বিকাশ/নগদ আইডি (যেমন: DE34R1DIS2) অথবা নেক্সাস পে আইডি (যেমন: 6408688276)
     const idRegex = /\b([A-Z0-9]{8,12})\b/g;
     const matches = text.match(idRegex) || [];
-    const trx = matches.find(id => 
-        /[A-Z]/.test(id) &&           // অন্তত একটি অক্ষর থাকতে হবে
-        !id.startsWith('01') &&        // মোবাইল নাম্বার হবে না
-        !/^\d+$/.test(id)              // শুধু নাম্বার হবে না (নেক্সাস পে বাদে)
-    ) || matches[0] || null;           // কিছুই না পেলে প্রথম ম্যাচটি নেবে
-
-    // --- AMOUNT লজিক ---
-    let amt = null;
     
-    // সব ডেসিমেল নাম্বার বের করা (যেমন: ৫০০.০০)
-    const allNumbers = text.match(/\d{1,3}(?:,\d{3})*(?:\.\d{2})/g);
+    let trx = matches.find(id => 
+        (/[A-Z]/.test(id) && !id.startsWith('01') && id.length >= 8) || // বিকাশ/নগদ আলফানিউমেরিক
+        (/^\d{10}$/.test(id)) // নেক্সাস পে ১০ ডিজিটের আইডি
+    ) || null;
 
-    if (allNumbers) {
-        const cleanedAmts = allNumbers
-            .map(n => parseFloat(n.replace(/,/g, '')))
-            .filter(n => n > 5); // ৫ টাকার নিচের 'Fee' বা 'VAT' বাদ দিতে
+    // ২. অ্যামাউন্ট খোঁজা
+    let amt = null;
 
-        // অগ্রাধিকার ১: 'Amount' কিউওয়ার্ডের পাশের সংখ্যা
-        const priorityMatch = text.match(/(?:পরিমাণ|Amount|TxnAmount|Total)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
+    // কিউওয়ার্ড ভিত্তিক সার্চ (সবথেকে নির্ভুল)
+    const priorityMatch = text.match(/(?:Amount|TxnAmount|পরিমাণ|অ্যামাউন্ট|Total)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
+    
+    if (priorityMatch) {
+        amt = priorityMatch[1].replace(/,/g, '');
+    } else {
+        // যদি কিউওয়ার্ড না পায় (যেমন ৮ নং বা ২ নং ছবির ক্ষেত্রে), তবে সব সংখ্যা বের করা
+        // আমরা শুধু পজিটিভ ডেসিমেল নাম্বারগুলো নেব
+        const allNumbers = text.match(/\d{1,3}(?:,\d{3})*(?:\.\d{2})/g);
         
-        // অগ্রাধিকার ২: 'Amount + Fee' ফরম্যাট (বিকাশ)
-        const bKashPlusMatch = text.match(/([\d,]+\.\d{2})\s?\+/);
+        if (allNumbers) {
+            const cleanedAmts = allNumbers
+                .map(n => parseFloat(n.replace(/,/g, '')))
+                .filter(n => n > 10); // খুব ছোট সংখ্যা (যেমন VAT বা Fee) বাদ দিতে
 
-        if (priorityMatch && !text.includes("Total Fee")) {
-            amt = priorityMatch[1].replace(/,/g, '');
-        } else if (bKashPlusMatch) {
-            amt = bKashPlusMatch[1].replace(/,/g, '');
-        } else {
-            // অগ্রাধিকার ৩: প্রাপ্ত লিস্টের সবচেয়ে বড় সংখ্যা (ব্যালেন্স বাদে সাধারণত এটিই মেইন টাকা)
-            // নোট: ব্যালেন্স সাধারণত তালিকার শেষে থাকে, তাই আমরা সব সংখ্যার মধ্যে সর্বোচ্চটি নেব
+            // সাধারণত ট্রানজেকশন অ্যামাউন্ট ব্যালেন্সের চেয়ে বড় হয় না, 
+            // কিন্তু চার্জের চেয়ে বড় হয়। তাই আমরা দ্বিতীয় সর্বোচ্চ বা 
+            // লজিক্যালি ফিল্টার করা সংখ্যাটি নিতে পারি।
+            // তবে বেশিরভাগ স্ক্রিনশটে বড় সংখ্যাটিই পেমেন্ট অ্যামাউন্ট হয়।
             amt = cleanedAmts.length > 0 ? Math.max(...cleanedAmts).toString() : null;
         }
     }
 
-    return { trx, amt };
+    // আপনার চাহিদা অনুযায়ী ভেরিয়েবলে সেভ করা
+    return { 
+        trx: trx ? trx : null, 
+        amt: amt ? amt : null 
+    };
 }
-
 
 
 
