@@ -86,7 +86,7 @@ const pinGroupUI = async () => {
     await bot.pinChatMessage(GROUP_ID, msg.message_id);
 };
 
-pinGroupUI();
+//pinGroupUI();
 
 
 // ======================
@@ -780,26 +780,58 @@ const ocrScanningText = await getMsg('ocr_status', '⏳ *Scanning Receipt with A
         const { data: { text } } = await Tesseract.recognize(url, 'eng+ben');
         
    
-        const allPotentialIds = text.match(/[A-Z0-9]{8,12}/g);
-        const trx = allPotentialIds?.find(id => 
-            !id.startsWith('01') && 
-            !id.startsWith('8801') && 
-            id.length >= 8
-        ) || null;
+// ১. Transaction ID বের করা (আগের মতোই)
+const allPotentialIds = text.match(/[A-Z0-9]{8,12}/g);
+const trx = allPotentialIds?.find(id => 
+    !id.startsWith('01') && 
+    !id.startsWith('8801') && 
+    !/^(TOTAL|BALANCE|TIME|AM|PM|NEW|PAYMENT)$/i.test(id) && 
+    id.length >= 8
+) || null;
 
-  
-        let amt = null;
+// ২. Amount বের করা - এবার আমরা Logic Flow পরিবর্তন করছি
+let amt = null;
+
+// ধাপ ১: সরাসরি '+' চিহ্নের বাম পাশের ডেসিমেল সংখ্যাটি খোঁজা (বিকাশ চার্জ ফরম্যাট)
+// এটি ৫০.০০ + ০.৯২ থেকে সরাসরি ৫০.০০ নিবে, ৫০.৯২ এর দিকে তাকাবেই না।
+const plusMatch = text.match(/([\d,]+\.\d{2})\s*\+/);
+
+if (plusMatch) {
+    amt = plusMatch[1].replace(/,/g, '');
+} else {
+    // ধাপ ২: যদি '+' না থাকে, তবে 'পরিমাণ' বা 'Amount' কিউওয়ার্ডের পাশের সংখ্যা দেখা
+    const amountRegex = /(?:পরিমাণ|Amount|TxnAmount)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i;
+    const amountMatch = text.match(amountRegex);
+    
+    if (amountMatch) {
+        amt = amountMatch[1].replace(/,/g, '');
+    } else {
+        // ধাপ ৩: একদম লাস্ট অপশন হিসেবে ব্যালেন্স বাদে অন্য সংখ্যা খোঁজা
+        const allNumbers = text.match(/\d{1,3}(?:,\d{3})*(?:\.\d{2})/g) || [];
+        const candidates = allNumbers
+            .map(n => n.replace(/,/g, ''))
+            .filter(n => {
+                const val = parseFloat(n);
+                // পেমেন্ট সাধারণত ছোট হয়, ব্যালেন্স অনেক বড়। 
+                // আর নতুন ব্যালেন্স বা Balance কিউওয়ার্ডের সাথে থাকা সংখ্যা বাদ।
+                const isLikelyBalance = text.includes(`ব্যালেন্স ${n}`) || text.includes(`Balance ${n}`);
+                return val > 5 && !isLikelyBalance;
+            });
         
-   
-        const baseAmtMatch = text.match(/(?:পরিমাণ|Amount|TxnAmount)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
-        
-        if (baseAmtMatch) {
-            amt = baseAmtMatch[1].replace(/,/g, '');
-        } else {
-            // Priority 2: Fallback to any decimal number if keywords aren't found (NexusPay popup case)
-            const fallBackAmt = text.match(/([\d,]+\.\d{2})/);
-            amt = fallBackAmt ? fallBackAmt[1].replace(/,/g, '') : null;
-        }
+        // যদি অনেক সংখ্যা থাকে, তবে ব্যালেন্স বাদ দিয়ে সবচেয়ে ছোটটি পেমেন্ট হওয়ার সম্ভাবনা বেশি
+        amt = candidates.length > 0 ? candidates[0] : null;
+    }
+}
+
+// ৩. ফাইনাল ভেরিফিকেশন (যদি ভুল করে ৫০.৯২ চলে আসে কিন্তু টেক্সটে ৫০.০০ থাকে)
+if (amt && text.includes('+')) {
+    const parts = text.match(/([\d,]+\.\d{2})\s*\+\s*([\d,]+\.\d{2})/);
+    if (parts && amt !== parts[1].replace(/,/g, '')) {
+        amt = parts[1].replace(/,/g, ''); // জোরপূর্বক ৫০.০০ সেট করা
+    }
+}
+
+console.log(`Final Result -> TrxID: ${trx}, Amount: ${amt}`);
 
         // Clean up the "Reading" message
         bot.deleteMessage(chatId, loading.message_id).catch(() => {});
