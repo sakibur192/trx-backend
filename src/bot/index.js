@@ -814,9 +814,9 @@ let bestMatch = null;
 // Split OCR into lines
 const lines = text.split('\n');
 
-console.log("0" + lines)
+console.log("\n0\n" + lines)
 for (let line of lines) {
-console.log("5" + lines)
+console.log("\n5\n" + lines)
     // Only consider lines with "+"
     if (!line.includes('+')) continue;
 
@@ -824,7 +824,7 @@ console.log("5" + lines)
     const match = line.match(/(\d{2,}\.\d{2})\s*\+\s*(\d{2,}\.\d{2})/);
 
 
-    console.log( "1" + match)
+    console.log( "\n1\n" + match)
 
     if (match) {
 
