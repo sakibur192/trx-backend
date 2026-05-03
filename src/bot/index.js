@@ -840,6 +840,7 @@ if (candidates.length > 0) {
     const finalPick = (filtered[0] || candidates[0]);
 
     amt = finalPick.left;
+    console.log("my ams " + amt)
     locked = true
 }
 
