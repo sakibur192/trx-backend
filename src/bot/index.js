@@ -4,124 +4,6 @@ const db = require('../db');
 const fs = require("fs");
 const path = require("path");
 
-
-
-
-const axios = require('axios'); // ফাইল বাফার ডাউনলোড করার জন্য
-
-// টেলিগ্রাম ফাইল পাথ থেকে ইমেজ ডাউনলোড করার লজিক
-// const url = `https://api.telegram.org/file/bot${TOKEN}/${file.file_path}`;
-
-// let amt = null;
-// let trx = null;
-
-// try {
-//     // ১. ইউআরএল থেকে ইমেজটিকে বাফার হিসেবে ডাউনলোড করা
-//     const response = await axios.get(url, { responseType: 'arraybuffer' });
-//     const imageBuffer = Buffer.from(response.data);
-
-//     // ২. বাফারটি আপনার এক্সট্রাকশন ফাংশনে পাঠানো
-//     const extractedData = await extractBestData(imageBuffer);
-
-//     // ৩. সরাসরি ভেরিয়েবলে ডাটা সেভ করা
-//     amt = extractedData.amt;
-//     trx = extractedData.trx;
-
-//     console.log(`Extracted -> Amount: ${amt}, TrxID: ${trx}`);
-
-// } catch (error) {
-//     console.error("Extraction failed:", error.message);
-//     amt = null;
-//     trx = null;
-// }
-
-// // এখন আপনার কাছে amt এবং trx ভেরিয়েবল দুটি ব্যবহারের জন্য প্রস্তুত
-
-
-
-// async function extractBestData(imageBuffer) {
-//     try {
-//         const base64Image = imageBuffer.toString('base64');
-//         const url = `https://vision.googleapis.com/v1/images:annotate?key=${GOOGLE_VISION_API_KEY}`;
-
-//         const requestData = {
-//             requests: [{
-//                 image: { content: base64Image },
-//                 features: [{ type: 'TEXT_DETECTION' }]
-//             }]
-//         };
-
-//         const response = await axios.post(url, requestData);
-//         const fullText = response.data.responses[0]?.fullTextAnnotation?.text || "";
-
-//         let amt = null;
-//         let trx = null;
-
-//         // ১. ট্রানজেকশন আইডি (TrxID) ফিল্টারিং
-//         // নেক্সাস পে (NexusPay) এর ১০ ডিজিটের আইডি আগে চেক করা
-//         const nexusMatch = fullText.match(/Txnld:(\d{10})/i);
-//         if (nexusMatch) {
-//             trx = nexusMatch[1];
-//         } else {
-//             // বিকাশ/নগদ এর আলফানিউমেরিক আইডি (৮-১২ ক্যারেক্টার)
-//             const idRegex = /\b([A-Z0-9]{8,12})\b/g;
-//             const matches = fullText.match(idRegex) || [];
-//             trx = matches.find(id => 
-//                 /[A-Z]/.test(id) && // অন্তত একটি অক্ষর থাকতে হবে
-//                 !/^(TOTAL|BALANCE|TIME|DATE|AM|PM)$/i.test(id) && // সাধারণ শব্দ বাদ
-//                 !id.startsWith('01') // মোবাইল নম্বর বাদ
-//             );
-//         }
-
-//         // ২. আসল অ্যামাউন্ট (Actual Amount) বের করা
-//         // আমরা "পরিমাণ", "টাকা" বা "Amount" কিউওয়ার্ডের পাশের সংখ্যাটিই নেব
-//         const primaryAmountMatch = fullText.match(/(?:Amount|TxnAmount|পরিমাণ|টাকা|অ্যামাউন্ট|Total)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
-        
-//         if (primaryAmountMatch) {
-//             amt = primaryAmountMatch[1].replace(/,/g, '');
-//         } else {
-//             // বিকাশ ইনবক্স বা ক্যাশ আউটের ক্ষেত্রে (যেখানে '+' চিহ্ন থাকে)
-//             const bKashInboxMatch = fullText.match(/\+\s?[৳Tt]([\d,]+\.\d{2})/);
-//             if (bKashInboxMatch) {
-//                 amt = bKashInboxMatch[1].replace(/,/g, '');
-//             } else {
-//                 // যদি কিছুই না পাওয়া যায়, তবে সব ডেসিমেল নাম্বারের মধ্য থেকে ফিল্টার করা
-//                 const numbers = fullText.match(/\d{1,3}(?:,\d{3})*(?:\.\d{2})/g) || [];
-//                 const candidates = numbers.map(n => parseFloat(n.replace(/,/g, '')));
-                
-//                 // নেক্সাস পে বা বিকাশে ফি (Fee) এবং ভ্যাট (VAT) সাধারণত খুব ছোট হয়। 
-//                 // আর ব্যালেন্স সব সময় অ্যামাউন্টের চেয়ে অনেক বড় হয় না, কিন্তু কিউওয়ার্ড ছাড়া এটি বের করা কঠিন।
-//                 // তাই আমরা 'Fee' বা 'Charge' শব্দগুলোর পজিশন চেক করে সেগুলো বাদ দিচ্ছি।
-//                 amt = candidates.find(c => c > 10 && !fullText.includes(`Charge: ${c}`) && !fullText.includes(`Fee: ${c}`)) || null;
-//                 if (amt) amt = amt.toString();
-//             }
-//         }
-
-//         return { 
-//             amt: amt ? amt.trim() : null, 
-//             trx: trx ? trx.trim() : null 
-//         };
-
-//     } catch (error) {
-//         console.error("Google Vision Error:", error.message);
-//         return { amt: null, trx: null };
-//     }
-// }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // ======================
 // CONFIG
 // ======================
@@ -137,24 +19,6 @@ const maskNumber = (num) => {
     if (!num || num.length < 7) return "Unknown";
     return num.substring(0, 4) + "****" + num.slice(-3);
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -909,93 +773,32 @@ const ocrScanningText = await getMsg('ocr_status', '⏳ *Scanning Receipt with A
     const loading = await bot.sendMessage(chatId, `${ocrScanningText}`);
     
     try {
-
         const file = await bot.getFile(msg.photo[msg.photo.length - 1].file_id);
-const url = `https://api.telegram.org/file/bot${TOKEN}/${file.file_path}`;
-
-// Using 'eng+ben' for multi-language support as seen in the images
-const { data: { text } } = await Tesseract.recognize(url, 'eng+ben');
-
-
-// --- STEP 1: NORMALIZE TEXT ---
-// OCR often reads the currency symbol '৳' as '8', 'S', 'b', or 'a'.
-// We remove these only when they are immediately followed by a digit.
-let cleanText = text.replace(/[৳Sb8aA](?=\d)/g, '');
-
-// Split into lines for positional analysis
-const lines = cleanText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-
-let trx = null;
-let amt = null;
-
-// --- STEP 2: POSITIONAL ID SEARCH ---
-for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    
-    // Look for Transaction ID labels
-    if (/ট্রানজেকশন আইডি|Transaction ID|TxnId|ID/i.test(line)) {
-        // Check current line, then check the next 2 lines (common in grid layouts)
-        const searchArea = [line, lines[i+1], lines[i+2]].join(' ');
-        const idMatch = searchArea.match(/\b([A-Z0-9]{8,12})\b/i);
+        const url = `https://api.telegram.org/file/bot${TOKEN}/${file.file_path}`;
         
-        if (idMatch) {
-            const potential = idMatch[1].toUpperCase();
-            if (!potential.startsWith('01') && !potential.startsWith('8801')) {
-                trx = potential;
-            }
+        // Using 'eng+ben' to handle English (Nexus/bKash) and Bengali (bKash/Nagad) text
+        const { data: { text } } = await Tesseract.recognize(url, 'eng+ben');
+        
+        console.log(text)
+
+        const allPotentialIds = text.match(/[A-Z0-9]{8,12}/g);
+        const trx = allPotentialIds?.find(id => 
+            !id.startsWith('01') && 
+            !id.startsWith('8801') && 
+            id.length >= 8
+        ) || null;
+
+        let amt = null;
+
+        const baseAmtMatch = text.match(/(?:পরিমাণ|Amount|TxnAmount)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
+        
+        if (baseAmtMatch) {
+            amt = baseAmtMatch[1].replace(/,/g, '');
+        } else {
+            // Priority 2: Fallback to any decimal number if keywords aren't found (NexusPay popup case)
+            const fallBackAmt = text.match(/([\d,]+\.\d{2})/);
+            amt = fallBackAmt ? fallBackAmt[1].replace(/,/g, '') : null;
         }
-    }
-}
-
-// --- STEP 3: REFINED AMOUNT SEARCH ---
-// Logic: Find the first line that looks like an addition (Amount + Fee)
-const addLine = lines.find(l => l.includes('+') && /[\d,]+\.\d{2}/.test(l));
-
-if (addLine) {
-    // Extract the FIRST number before the '+' (the base amount)
-    const basePart = addLine.split('+')[0];
-    const match = basePart.match(/([\d,]+\.\d{2})/);
-    if (match) amt = match[1].replace(/,/g, '');
-}
-
-// Fallback if no '+' line was found
-if (!amt) {
-    for (let i = 0; i < lines.length; i++) {
-        if (/পরিমাণ|Amount|TxnAmount|Total/i.test(lines[i])) {
-            const searchArea = [lines[i], lines[i+1]].join(' ');
-            const match = searchArea.match(/([\d,]+\.\d{2})/);
-            if (match) {
-                amt = match[1].replace(/,/g, '');
-                break;
-            }
-        }
-    }
-}
-
-// --- STEP 4: FINAL CLEANUP ---
-// If 'amt' still starts with 8 and is suspiciously long (e.g., 83900.00), strip the leading 8
-if (amt && amt.length >= 7 && amt.startsWith('8')) {
-    amt = amt.substring(1);
-}
-
-console.log(`Final Result - ID: ${trx}, Amount: ${amt}`);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
