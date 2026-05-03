@@ -4,6 +4,15 @@ const db = require('../db');
 const fs = require("fs");
 const path = require("path");
 
+
+const axios = require('axios');
+const FormData = require('form-data');
+const sharp = require('sharp');
+
+// আপনার কনফিগারেশন
+const OCR_API_KEY = 'K83723389188957';
+const MAX_SIZE_MB = 1;
+
 // ======================
 // CONFIG
 // ======================
@@ -661,8 +670,83 @@ const withdrawSuccessStatus = await getMsg(
 
 
 
+async function extractTransactionData(imageUrl) {
+    try {
+        // ১. ইমেজ ডাউনলোড এবং রিসাইজ (১ এমবি লিমিট হ্যান্ডলিং)
+        const imageRes = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+        let buffer = Buffer.from(imageRes.data);
 
+        // সাইজ ১ এমবির বেশি হলে কোয়ালিটি কমিয়ে ছোট করা
+        if (buffer.length > 1024 * 1024) {
+            buffer = await sharp(buffer)
+                .resize(1200) 
+                .jpeg({ quality: 85 })
+                .toBuffer();
+        }
 
+        // ২. OCR.space এপিআই কল
+        const form = new FormData();
+        form.append('apikey', OCR_API_KEY);
+        form.append('OCREngine', '2'); // ঝাপসা ছবির জন্য অপরিহার্য
+        form.append('file', buffer, { filename: 'image.jpg' });
+
+        const res = await axios.post('https://api.ocr.space/parse/image', form, {
+            headers: form.getHeaders()
+        });
+
+        const text = res.data.ParsedResults?.[0]?.ParsedText || "";
+        console.log("OCR Text:", text); // ডিবাগিং এর জন্য
+
+        // ৩. ডাটা এক্সট্রাকশন (আপনার দেওয়া লজিক সহ উন্নত ভার্সন)
+        return parseFinalData(text);
+
+    } catch (err) {
+        console.error("OCR Error:", err);
+        return { trx: null, amt: null };
+    }
+}
+
+function parseFinalData(text) {
+    // --- TRANSACTION ID লজিক ---
+    // নগদ/বিকাশ আইডি সাধারণত ৮-১২ অক্ষরের হয় এবং তাতে ইংরেজি বড় হাতের অক্ষর থাকে
+    const idRegex = /\b([A-Z0-9]{8,12})\b/g;
+    const matches = text.match(idRegex) || [];
+    const trx = matches.find(id => 
+        /[A-Z]/.test(id) &&           // অন্তত একটি অক্ষর থাকতে হবে
+        !id.startsWith('01') &&        // মোবাইল নাম্বার হবে না
+        !/^\d+$/.test(id)              // শুধু নাম্বার হবে না (নেক্সাস পে বাদে)
+    ) || matches[0] || null;           // কিছুই না পেলে প্রথম ম্যাচটি নেবে
+
+    // --- AMOUNT লজিক ---
+    let amt = null;
+    
+    // সব ডেসিমেল নাম্বার বের করা (যেমন: ৫০০.০০)
+    const allNumbers = text.match(/\d{1,3}(?:,\d{3})*(?:\.\d{2})/g);
+
+    if (allNumbers) {
+        const cleanedAmts = allNumbers
+            .map(n => parseFloat(n.replace(/,/g, '')))
+            .filter(n => n > 5); // ৫ টাকার নিচের 'Fee' বা 'VAT' বাদ দিতে
+
+        // অগ্রাধিকার ১: 'Amount' কিউওয়ার্ডের পাশের সংখ্যা
+        const priorityMatch = text.match(/(?:পরিমাণ|Amount|TxnAmount|Total)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
+        
+        // অগ্রাধিকার ২: 'Amount + Fee' ফরম্যাট (বিকাশ)
+        const bKashPlusMatch = text.match(/([\d,]+\.\d{2})\s?\+/);
+
+        if (priorityMatch && !text.includes("Total Fee")) {
+            amt = priorityMatch[1].replace(/,/g, '');
+        } else if (bKashPlusMatch) {
+            amt = bKashPlusMatch[1].replace(/,/g, '');
+        } else {
+            // অগ্রাধিকার ৩: প্রাপ্ত লিস্টের সবচেয়ে বড় সংখ্যা (ব্যালেন্স বাদে সাধারণত এটিই মেইন টাকা)
+            // নোট: ব্যালেন্স সাধারণত তালিকার শেষে থাকে, তাই আমরা সব সংখ্যার মধ্যে সর্বোচ্চটি নেব
+            amt = cleanedAmts.length > 0 ? Math.max(...cleanedAmts).toString() : null;
+        }
+    }
+
+    return { trx, amt };
+}
 
 
 
@@ -780,62 +864,16 @@ const ocrScanningText = await getMsg('ocr_status', '⏳ *Scanning Receipt with A
         const file = await bot.getFile(msg.photo[msg.photo.length - 1].file_id);
 const url = `https://api.telegram.org/file/bot${TOKEN}/${file.file_path}`;
 
-// ১. OCR প্রসেসিং (English এবং Bengali উভয়ই সাপোর্ট করবে)
-const { data: { text } } = await Tesseract.recognize(url, 'eng+ben');
 
-// ২. TRANSACTION ID লজিক
-// --- ১. TRANSACTION ID ফিক্স (আরও ফ্লেক্সিবল) ---
-const allPotentialIds = text.match(/[A-Z0-9]{8,12}/g);
-const trx = allPotentialIds?.find(id => 
-    /[A-Z]/.test(id) && 
-    !/^\d+$/.test(id) && // নিশ্চিত করে শুধু নাম্বার নয়
-    !id.startsWith('01') && 
-    id.length >= 8
-) || null;
 
-// --- ২. AMOUNT ফিক্স (আপনার সমস্যাগুলো সমাধানের জন্য আপডেট) ---
 let amt = null;
+let trx = null;
+const extractedData = await extractTransactionData(url);
 
-// লজিক ১: মূল টাকা সবসময় চার্জের চেয়ে বড় হয়। 
-// তাই আমরা সব ডেসিমেল নাম্বার বের করে সবচেয়ে বড়টি নেব (বিকাশ ব্যালেন্স বাদে)।
-const allAmounts = text.match(/([\d,]+\.\d{2})/g);
-
-if (allAmounts) {
-    const cleanedAmts = allAmounts
-        .map(a => parseFloat(a.replace(/,/g, '')))
-        .filter(a => a > 5); // ৫ টাকার নিচের "Fee" বা "VAT" ফিল্টার করার জন্য
-
-    // লজিক ২: বিকাশের সেই নির্দিষ্ট ফরম্যাট (Amount + Fee)
-    const bKashSplitAmt = text.match(/([\d,]+\.\d{2})\s?\+/);
-
-    if (bKashSplitAmt) {
-        amt = bKashSplitAmt[1].replace(/,/g, '');
-    } else {
-        // লজিক ৩: কিউওয়ার্ড ভিত্তিক সার্চ (পরিমাণ, Amount, TxnAmount)
-        // এখানে 'Total Fee' বা 'Total' এর বদলে 'Amount' কে প্রায়োরিটি দেওয়া হয়েছে
-        const amountPriority = text.match(/(?:পরিমাণ|Amount|TxnAmount)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
-        
-        if (amountPriority) {
-            amt = amountPriority[1].replace(/,/g, '');
-        } else {
-            // যদি কিছুই না পাওয়া যায়, তবে প্রাপ্ত লিস্টের প্রথম বড় সংখ্যাটি নিন
-            amt = cleanedAmts.length > 0 ? cleanedAmts[0].toString() : null;
-        }
-    }
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
+    // সরাসরি ভেরিয়েবলে ডাটা সেভ করা
+    // যদি ডাটা না পায় তবে ডাটা স্ট্রাকচার অনুযায়ী null সেট হবে
+    amt = extractedData.amt;
+    trx = extractedData.trx;
 
 
                 // Clean up the "Reading" message
