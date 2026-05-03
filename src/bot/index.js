@@ -779,62 +779,66 @@ const ocrScanningText = await getMsg('ocr_status', '⏳ *Scanning Receipt with A
         // Using 'eng+ben' to handle English (Nexus/bKash) and Bengali (bKash/Nagad) text
         const { data: { text } } = await Tesseract.recognize(url, 'eng+ben');
         
-        console.log(text)
-// --- 1. CLEANING THE RAW TEXT ---
-// We target the common bKash OCR errors: '৮ট', 'ট', or '8' before a number
-let cleanedText = text
-    .replace(/৮ট/g, '') // Removes the misread Bengali '8' + 't' combo
-    .replace(/[ট$৮](?=\d)/g, '') // Removes any stray currency/number symbols before digits
-    .replace(/,/g, ''); // Remove commas for easier math/regex
+        // --- 1. OPTIMIZED TRANSACTION ID LOGIC ---
+        // We look for 8-12 character alphanumeric strings.
+        // We filter out anything that looks like a Bangladesh phone number (starting with 01 or 8801).
+        // const allPotentialIds = text.match(/[A-Z0-9]{8,12}/g);
+        // const trx = allPotentialIds?.find(id => 
+        //     !id.startsWith('01') && 
+        //     !id.startsWith('8801') && 
+        //     id.length >= 8
+        // ) || null;
 
-const lines = cleanedText.split('\n').map(l => l.trim());
+        // --- 2. OPTIMIZED AMOUNT LOGIC ---
+        // To get the Base Amount (e.g., 3900 instead of 3972), we prioritize specific keywords.
+        // let amt = null;
+        
+        // Priority 1: Look for "Amount" or "পরিমাণ" (This hits your 380, 15800, and 3900 targets)
+        // const baseAmtMatch = text.match(/(?:পরিমাণ|Amount|TxnAmount)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
+        
+        // if (baseAmtMatch) {
+        //     amt = baseAmtMatch[1].replace(/,/g, '');
+        // } else {
+        //     // Priority 2: Fallback to any decimal number if keywords aren't found (NexusPay popup case)
+        //     const fallBackAmt = text.match(/([\d,]+\.\d{2})/);
+        //     amt = fallBackAmt ? fallBackAmt[1].replace(/,/g, '') : null;
+        // }
 
-let trx = null;
+
+
+
+        // --- ১. OPTIMIZED TRANSACTION ID LOGIC ---
+// bKash এবং অন্যান্য গেটওয়ের জন্য Alphanumeric ID ফিল্টার
+const allPotentialIds = text.match(/[A-Z0-9]{8,12}/g);
+
+const trx = allPotentialIds?.find(id => 
+    /[A-Z]/.test(id) &&           // অন্তত একটি অক্ষর থাকতে হবে (যাতে ফোন নাম্বার না নেয়)
+    !id.startsWith('01') &&       // ০১ দিয়ে শুরু হওয়া ফোন নাম্বার বাদ
+    !id.startsWith('8801') &&     // ৮৮০১ দিয়ে শুরু হওয়া ফোন নাম্বার বাদ
+    id.length >= 8
+) || null;
+
+// --- ২. OPTIMIZED AMOUNT LOGIC (THE "PERFECTION" MIX) ---
 let amt = null;
 
-// --- 2. EXTRACTING TRANSACTION ID ---
-// In your raw text, the ID 'DDT8N3CI2K' or 'DE27QOKZL1' appears on the same line
-// or immediately following the label.
-const trxRegex = /\b([A-Z0-9]{10})\b/i;
+// Priority 1: bKash New UI Specific (যেখানে মূল টাকার পর '+' থাকে)
+const bKashSplitAmt = text.match(/([\d,]+\.\d{2})\s?\+/);
 
-for (let i = 0; i < lines.length; i++) {
-    if (/ট্রানজেকশন আইডি|Transaction ID/i.test(lines[i])) {
-        // Look in the current line and the next line
-        const combined = lines[i] + " " + (lines[i+1] || "");
-        const match = combined.match(trxRegex);
-        if (match) {
-            const id = match[1].toUpperCase();
-            // Ignore if it's just a phone number (start with 01)
-            if (!id.startsWith('01')) {
-                trx = id;
-                break;
-            }
-        }
-    }
-}
+// Priority 2: Standard Keywords (Amount, Total, TxnAmount)
+const baseAmtMatch = text.match(/(?:পরিমাণ|Amount|Total|TxnAmount)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
 
-// --- 3. EXTRACTING AMOUNT ---
-// Your raw text shows the addition pattern: "3900.00 + 7215" or "4900.00 +"
-// We want the base amount before the plus sign.
-const additionMatch = cleanedText.match(/(\d+\.\d{2})\s*\+/);
-
-if (additionMatch) {
-    amt = additionMatch[1];
+if (bKashSplitAmt) {
+    // এটি আপনার স্ক্রিনশট থেকে ৪,৯০০.০০ বের করবে
+    amt = bKashSplitAmt[1].replace(/,/g, '');
+} else if (baseAmtMatch) {
+    // এটি কিওয়ার্ডের পাশের অ্যামাউন্ট নেবে
+    amt = baseAmtMatch[1].replace(/,/g, '');
 } else {
-    // Fallback: If no '+' found, look for numbers with decimals on lines following "Total" or "সর্বমোট"
-    for (let i = 0; i < lines.length; i++) {
-        if (/সর্বমোট|Total/i.test(lines[i])) {
-            const nextMatch = (lines[i+1] || "").match(/(\d+\.\d{2})/);
-            if (nextMatch) {
-                amt = nextMatch[1];
-                break;
-            }
-        }
-    }
+    // Priority 3: Fallback (যদি কিছুই না মেলে তবে প্রথম ডেসিমেল)
+    const fallBackAmt = text.match(/([\d,]+\.\d{2})/);
+    amt = fallBackAmt ? fallBackAmt[1].replace(/,/g, '') : null;
 }
 
-console.log("trx = " + trx)
-console.log("amt = " + amt)
 
 
         // Clean up the "Reading" message
