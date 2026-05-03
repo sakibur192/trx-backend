@@ -916,63 +916,89 @@ const url = `https://api.telegram.org/file/bot${TOKEN}/${file.file_path}`;
 // Using 'eng+ben' for multi-language support as seen in the images
 const { data: { text } } = await Tesseract.recognize(url, 'eng+ben');
 
-// --- 1. REFINED TRANSACTION ID EXTRACTION ---
-// Patterns observed: 75A2129V, DDT8N3CI2K, 6408688276, DE27QOKZL1, 75A0302N
-// We need to allow lowercase for some OCR errors and handle purely numeric IDs (NexusPay).
-const idPatterns = [
-    /(?:ট্রানজেকশন আইডি|Transaction ID|TxnId)[:\s]*([A-Z0-9]{8,12})/i, // Explicit labels
-    /\b([A-Z0-9]{10})\b/i, // Standard 10-char bKash/Nagad IDs
-];
-const lines = text.split('\n').map(l => l.trim());
-let trx = null;
 
+// --- STEP 1: NORMALIZE TEXT ---
+// OCR often reads the currency symbol '৳' as '8', 'S', 'b', or 'a'.
+// We remove these only when they are immediately followed by a digit.
+let cleanText = text.replace(/[৳Sb8aA](?=\d)/g, '');
+
+// Split into lines for positional analysis
+const lines = cleanText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+let trx = null;
+let amt = null;
+
+// --- STEP 2: POSITIONAL ID SEARCH ---
 for (let i = 0; i < lines.length; i++) {
-    // If a line contains the label, the ID is often the very next line
-    if (/ট্রানজেকশন আইডি|Transaction ID|TxnId/i.test(lines[i])) {
-        const nextLine = lines[i+1]?.match(/[A-Z0-9]{8,12}/i);
-        if (nextLine) {
-            trx = nextLine[0].toUpperCase();
-            break;
+    const line = lines[i];
+    
+    // Look for Transaction ID labels
+    if (/ট্রানজেকশন আইডি|Transaction ID|TxnId|ID/i.test(line)) {
+        // Check current line, then check the next 2 lines (common in grid layouts)
+        const searchArea = [line, lines[i+1], lines[i+2]].join(' ');
+        const idMatch = searchArea.match(/\b([A-Z0-9]{8,12})\b/i);
+        
+        if (idMatch) {
+            const potential = idMatch[1].toUpperCase();
+            if (!potential.startsWith('01') && !potential.startsWith('8801')) {
+                trx = potential;
+            }
         }
     }
 }
 
-// Fallback: search the whole text if the line-by-line check fails
-if (!trx) {
-    const allPotentialIds = text.match(/\b[A-Z0-9]{8,12}\b/gi);
-    trx = allPotentialIds?.find(id => 
-        !id.startsWith('01') && 
-        !id.startsWith('8801')
-    )?.toUpperCase() || null;
+// --- STEP 3: REFINED AMOUNT SEARCH ---
+// Logic: Find the first line that looks like an addition (Amount + Fee)
+const addLine = lines.find(l => l.includes('+') && /[\d,]+\.\d{2}/.test(l));
+
+if (addLine) {
+    // Extract the FIRST number before the '+' (the base amount)
+    const basePart = addLine.split('+')[0];
+    const match = basePart.match(/([\d,]+\.\d{2})/);
+    if (match) amt = match[1].replace(/,/g, '');
 }
 
-// --- 2. IMPROVED AMOUNT EXTRACTION (FIXING THE "8" ERROR) ---
-let amt = null;
-
-// First, clean the text: Replace common OCR misreads of the ৳ symbol
-// Tesseract often sees '৳' as '8', 'S', or 'b'
-let cleanedText = text.replace(/[৳Sb8](?=\d)/g, ''); 
-
-// Look for the bKash addition pattern first (e.g., 3,900.00 + 72.15)
-const additionPattern = /([\d,]+\.\d{2})\s?\+\s?[\d,]+\.\d{2}/;
-const addMatch = cleanedText.match(additionPattern);
-
-if (addMatch) {
-    amt = addMatch[1].replace(/,/g, '');
-} else {
-    // Search for amount after a keyword in the cleaned text
-    const amtMatch = cleanedText.match(/(?:পরিমাণ|Amount|TxnAmount|Total)[:\s]*([\d,]+\.\d{2})/i);
-    if (amtMatch) {
-        amt = amtMatch[1].replace(/,/g, '');
+// Fallback if no '+' line was found
+if (!amt) {
+    for (let i = 0; i < lines.length; i++) {
+        if (/পরিমাণ|Amount|TxnAmount|Total/i.test(lines[i])) {
+            const searchArea = [lines[i], lines[i+1]].join(' ');
+            const match = searchArea.match(/([\d,]+\.\d{2})/);
+            if (match) {
+                amt = match[1].replace(/,/g, '');
+                break;
+            }
+        }
     }
 }
 
-// Final check: if amt still looks like '83900', ensure we didn't miss a decimal or symbol
-if (amt && amt.startsWith('8') && amt.length > 5) {
-    // Logic check: if the original text had a ৳ right before this number, 
-    // it's almost certainly a misread ৳
-    amt = amt.substring(1); 
+// --- STEP 4: FINAL CLEANUP ---
+// If 'amt' still starts with 8 and is suspiciously long (e.g., 83900.00), strip the leading 8
+if (amt && amt.length >= 7 && amt.startsWith('8')) {
+    amt = amt.substring(1);
 }
+
+console.log(`Final Result - ID: ${trx}, Amount: ${amt}`);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         // Clean up the "Reading" message
         bot.deleteMessage(chatId, loading.message_id).catch(() => {});
 const fileId = msg.photo[msg.photo.length - 1].file_id;
