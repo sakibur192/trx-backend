@@ -809,37 +809,38 @@ const trx = allPotentialIds?.find(id =>
 
 let amt = null;
 let locked = false;
-let bestMatch = null;
-// 🔥 Normalize Bengali digits → English digits
 
 const lines = text.split(/[\n,]/);
 
+let candidates = [];
+
 for (let line of lines) {
-
-    // Must contain exactly ONE "+"
-    if ((line.match(/\+/g) || []).length !== 1) continue;
-
-    // Must NOT contain noise
-    if (/[^\d\s+.+]/.test(line.replace(/[০-৯]/g, ''))) continue;
 
     const match = line.match(/(\d{2,}\.\d{2})\s*\+\s*(\d{2,}\.\d{2})/);
 
-    if (match) {
+    if (!match) continue;
 
-        const left = parseFloat(match[1]);
-        const right = parseFloat(match[2]);
+    const left = match[1];
+    const right = match[2];
 
-        // extra safety: ignore balance-like huge left values
-        if (left > 10000) continue;
+    // ❗ ignore obvious balance line pattern
+    if (line.includes('+++') || line.includes('*')) continue;
 
-        bestMatch = match[1];
-        break;
-    }
+    candidates.push({ left, right, line });
 }
 
-if (bestMatch) {
-    amt = bestMatch;
-      locked = true;
+// 🧠 choose best candidate
+if (candidates.length > 0) {
+
+    // remove values that appear as "right side" elsewhere (balance noise filter)
+    const rightValues = candidates.map(c => c.right);
+
+    const filtered = candidates.filter(c => !rightValues.includes(c.left));
+
+    const finalPick = (filtered[0] || candidates[0]);
+
+    amt = finalPick.left;
+    locked = true
 }
 
 
