@@ -779,7 +779,7 @@ const ocrScanningText = await getMsg('ocr_status', '⏳ *Scanning Receipt with A
         // Using 'eng+ben' to handle English (Nexus/bKash) and Bengali (bKash/Nagad) text
         const { data: { text } } = await Tesseract.recognize(url, 'eng+ben');
         
-        console.log(text)
+        console.log(text);
 
         const allPotentialIds = text.match(/[A-Z0-9]{8,12}/g);
         const trx = allPotentialIds?.find(id => 
