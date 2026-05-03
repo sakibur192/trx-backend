@@ -808,11 +808,13 @@ const trx = allPotentialIds?.find(id =>
 // ২. Amount বের করা - এবার আমরা Logic Flow পরিবর্তন করছি
 
 let amt = null;
-
+let locked = false;
 const strictPlus = text.match(/(\d{2,}\.\d{2})\s+\+\s+(\d{2,}\.\d{2})/);
 
+
 if (strictPlus) {
-    amt = strictPlus[1]; // always take left side
+    amt = strictPlus[1];
+    locked = true; // 🔒 lock value so nothing overrides it
 }
 
 // ধাপ ১: সরাসরি '+' চিহ্নের বাম পাশের ডেসিমেল সংখ্যাটি খোঁজা (বিকাশ চার্জ ফরম্যাট)
@@ -822,74 +824,74 @@ if (strictPlus) {
 const plusMatch = !amt ? text.match(/([\d,]+\.\d{2})\s*\+/) : null;
 
 
+if(!locked){
+            if (plusMatch) {
 
-if (plusMatch) {
+                amt = plusMatch[1].replace(/,/g, '');
 
-    amt = plusMatch[1].replace(/,/g, '');
+            } else {
 
-} else {
+                // ধাপ ২: যদি '+' না থাকে, তবে 'পরিমাণ' বা 'Amount' কিউওয়ার্ডের পাশের সংখ্যা দেখা
 
-    // ধাপ ২: যদি '+' না থাকে, তবে 'পরিমাণ' বা 'Amount' কিউওয়ার্ডের পাশের সংখ্যা দেখা
+                const amountRegex = /(?:পরিমাণ|Amount|TxnAmount)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i;
 
-    const amountRegex = /(?:পরিমাণ|Amount|TxnAmount)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i;
+                const amountMatch = text.match(amountRegex);
 
-    const amountMatch = text.match(amountRegex);
+                
 
-    
+                if (amountMatch) {
 
-    if (amountMatch) {
+                    amt = amountMatch[1].replace(/,/g, '');
 
-        amt = amountMatch[1].replace(/,/g, '');
+                } else {
 
-    } else {
+                    // ধাপ ৩: একদম লাস্ট অপশন হিসেবে ব্যালেন্স বাদে অন্য সংখ্যা খোঁজা
 
-        // ধাপ ৩: একদম লাস্ট অপশন হিসেবে ব্যালেন্স বাদে অন্য সংখ্যা খোঁজা
+                    const allNumbers = text.match(/\d{1,3}(?:,\d{3})*(?:\.\d{2})/g) || [];
 
-        const allNumbers = text.match(/\d{1,3}(?:,\d{3})*(?:\.\d{2})/g) || [];
+                    const candidates = allNumbers
 
-        const candidates = allNumbers
+                        .map(n => n.replace(/,/g, ''))
 
-            .map(n => n.replace(/,/g, ''))
+                        .filter(n => {
 
-            .filter(n => {
+                            const val = parseFloat(n);
 
-                const val = parseFloat(n);
+                            // পেমেন্ট সাধারণত ছোট হয়, ব্যালেন্স অনেক বড়। 
 
-                // পেমেন্ট সাধারণত ছোট হয়, ব্যালেন্স অনেক বড়। 
+                            // আর নতুন ব্যালেন্স বা Balance কিউওয়ার্ডের সাথে থাকা সংখ্যা বাদ।
 
-                // আর নতুন ব্যালেন্স বা Balance কিউওয়ার্ডের সাথে থাকা সংখ্যা বাদ।
+                            const isLikelyBalance = text.includes(`ব্যালেন্স ${n}`) || text.includes(`Balance ${n}`);
 
-                const isLikelyBalance = text.includes(`ব্যালেন্স ${n}`) || text.includes(`Balance ${n}`);
+                            return val > 5 && !isLikelyBalance;
 
-                return val > 5 && !isLikelyBalance;
+                        });
 
-            });
+                    
 
-        
+                    // যদি অনেক সংখ্যা থাকে, তবে ব্যালেন্স বাদ দিয়ে সবচেয়ে ছোটটি পেমেন্ট হওয়ার সম্ভাবনা বেশি
 
-        // যদি অনেক সংখ্যা থাকে, তবে ব্যালেন্স বাদ দিয়ে সবচেয়ে ছোটটি পেমেন্ট হওয়ার সম্ভাবনা বেশি
+                    amt = candidates.length > 0 ? candidates[0] : null;
 
-        amt = candidates.length > 0 ? candidates[0] : null;
+                }
 
-    }
-
-}
+            }
 
 
-
+        }
 // ৩. ফাইনাল ভেরিফিকেশন (যদি ভুল করে ৫০.৯২ চলে আসে কিন্তু টেক্সটে ৫০.০০ থাকে)
 
-if (amt && text.includes('+')) {
+        if (!locked &&  amt && text.includes('+')) {
 
-    const parts = text.match(/([\d,]+\.\d{2})\s*\+\s*([\d,]+\.\d{2})/);
+            const parts = text.match(/([\d,]+\.\d{2})\s*\+\s*([\d,]+\.\d{2})/);
 
-    if (parts && amt !== parts[1].replace(/,/g, '')) {
+            if (parts && amt !== parts[1].replace(/,/g, '')) {
 
-        amt = parts[1].replace(/,/g, ''); // জোরপূর্বক ৫০.০০ সেট করা
+                amt = parts[1].replace(/,/g, ''); // জোরপূর্বক ৫০.০০ সেট করা
 
-    }
+            }
 
-}
+        }
 
 
 
