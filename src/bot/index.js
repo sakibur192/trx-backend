@@ -812,21 +812,30 @@ let locked = false;
 let bestMatch = null;
 // 🔥 Normalize Bengali digits → English digits
 let xtext = text.replace(/(^|\s)[৮8](?=\d{2,}\.\d{2})/g, '$1');
-
 const lines = xtext.split(/[\n,]/);
 
 for (let line of lines) {
 
-    if (!line.includes('+')) continue;
+    // Must contain exactly ONE "+"
+    if ((line.match(/\+/g) || []).length !== 1) continue;
+
+    // Must NOT contain noise
+    if (/[^\d\s+.+]/.test(line.replace(/[০-৯]/g, ''))) continue;
 
     const match = line.match(/(\d{2,}\.\d{2})\s*\+\s*(\d{2,}\.\d{2})/);
 
     if (match) {
-        bestMatch = match[1]; // LEFT SIDE (50.00)
+
+        const left = parseFloat(match[1]);
+        const right = parseFloat(match[2]);
+
+        // extra safety: ignore balance-like huge left values
+        if (left > 10000) continue;
+
+        bestMatch = match[1];
         break;
     }
 }
-
 
 if (bestMatch) {
     amt = bestMatch;
