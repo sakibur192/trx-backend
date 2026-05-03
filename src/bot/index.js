@@ -779,27 +779,62 @@ const ocrScanningText = await getMsg('ocr_status', '⏳ *Scanning Receipt with A
         // Using 'eng+ben' to handle English (Nexus/bKash) and Bengali (bKash/Nagad) text
         const { data: { text } } = await Tesseract.recognize(url, 'eng+ben');
         
-        console.log(text);
+        console.log(text)
+// --- 1. CLEANING THE RAW TEXT ---
+// We target the common bKash OCR errors: '৮ট', 'ট', or '8' before a number
+let cleanedText = text
+    .replace(/৮ট/g, '') // Removes the misread Bengali '8' + 't' combo
+    .replace(/[ট$৮](?=\d)/g, '') // Removes any stray currency/number symbols before digits
+    .replace(/,/g, ''); // Remove commas for easier math/regex
 
-        const allPotentialIds = text.match(/[A-Z0-9]{8,12}/g);
-        const trx = allPotentialIds?.find(id => 
-            !id.startsWith('01') && 
-            !id.startsWith('8801') && 
-            id.length >= 8
-        ) || null;
+const lines = cleanedText.split('\n').map(l => l.trim());
 
-        let amt = null;
+let trx = null;
+let amt = null;
 
-        const baseAmtMatch = text.match(/(?:পরিমাণ|Amount|TxnAmount)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
-        
-        if (baseAmtMatch) {
-            amt = baseAmtMatch[1].replace(/,/g, '');
-        } else {
-            // Priority 2: Fallback to any decimal number if keywords aren't found (NexusPay popup case)
-            const fallBackAmt = text.match(/([\d,]+\.\d{2})/);
-            amt = fallBackAmt ? fallBackAmt[1].replace(/,/g, '') : null;
+// --- 2. EXTRACTING TRANSACTION ID ---
+// In your raw text, the ID 'DDT8N3CI2K' or 'DE27QOKZL1' appears on the same line
+// or immediately following the label.
+const trxRegex = /\b([A-Z0-9]{10})\b/i;
+
+for (let i = 0; i < lines.length; i++) {
+    if (/ট্রানজেকশন আইডি|Transaction ID/i.test(lines[i])) {
+        // Look in the current line and the next line
+        const combined = lines[i] + " " + (lines[i+1] || "");
+        const match = combined.match(trxRegex);
+        if (match) {
+            const id = match[1].toUpperCase();
+            // Ignore if it's just a phone number (start with 01)
+            if (!id.startsWith('01')) {
+                trx = id;
+                break;
+            }
         }
+    }
+}
 
+// --- 3. EXTRACTING AMOUNT ---
+// Your raw text shows the addition pattern: "3900.00 + 7215" or "4900.00 +"
+// We want the base amount before the plus sign.
+const additionMatch = cleanedText.match(/(\d+\.\d{2})\s*\+/);
+
+if (additionMatch) {
+    amt = additionMatch[1];
+} else {
+    // Fallback: If no '+' found, look for numbers with decimals on lines following "Total" or "সর্বমোট"
+    for (let i = 0; i < lines.length; i++) {
+        if (/সর্বমোট|Total/i.test(lines[i])) {
+            const nextMatch = (lines[i+1] || "").match(/(\d+\.\d{2})/);
+            if (nextMatch) {
+                amt = nextMatch[1];
+                break;
+            }
+        }
+    }
+}
+
+console.log("trx = " + trx)
+console.log("amt = " + amt)
 
 
         // Clean up the "Reading" message
@@ -812,7 +847,7 @@ const fileId = msg.photo[msg.photo.length - 1].file_id;
             const ocrSuccessTitle = await getMsg('ocr_success', '✅ *Scan Complete!*');
 const ocrPlayerPrompt = await getMsg('ocr_player_prompt', '👉 আপনার প্লেয়ার আইডি দিনঃ:');
 
-bot.sendMessage(chatId, `${text}\n━━━━━━━━━━━━━━━\n🔑 *TRX ID:* \`${trx}\` \n💰 *Amount:* \`${amt}\` \n━━━━━━━━━━━━━━━\n${ocrPlayerPrompt}`);
+bot.sendMessage(chatId, `${ocrSuccessTitle}\n━━━━━━━━━━━━━━━\n🔑 *TRX ID:* \`${trx}\` \n💰 *Amount:* \`${amt}\` \n━━━━━━━━━━━━━━━\n${ocrPlayerPrompt}`);
         } else {
             // If the scan failed to find one of the two, switch to manual mode
 
@@ -824,7 +859,7 @@ const scanFailText = await getMsg(
 
 
             userState[chatId] = { step: 'M_TRX' };
-            bot.sendMessage(chatId, `${scanFailText} \n${text}`);
+            bot.sendMessage(chatId, `${scanFailText}`);
         }
 
     } catch (e) { 
