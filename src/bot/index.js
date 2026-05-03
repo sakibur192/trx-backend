@@ -933,6 +933,9 @@ const ocrScanningText = await getMsg('ocr_status', '⏳ *Scanning Receipt with A
 const url = `https://api.telegram.org/file/bot${TOKEN}/${file.file_path}`;
 
 
+let amt = null;
+let trx = null;
+
 try {
     // ১. ইউআরএল থেকে ইমেজটিকে বাফার হিসেবে ডাউনলোড করা
     const response = await axios.get(url, { responseType: 'arraybuffer' });
