@@ -781,119 +781,96 @@ const ocrScanningText = await getMsg('ocr_status', '⏳ *Scanning Receipt with A
         
    
 
+let text = rawText;
+
+// ======================
+// 🧹 STEP 0: CLEAN OCR TEXT (NEW)
+// ======================
+text = text
+  // Bengali digits → English digits
+  .replace(/[০-৯]/g, d => '০১২৩৪৫৬৭৮৯'.indexOf(d))
+
+  // Remove weird symbols but keep numbers, dot, plus
+  .replace(/[^0-9.\n +]/g, ' ')
+
+  // Fix cases like "8 50.00" → "50.00"
+  .replace(/(\D|^)[0-9]{1}(\d{2,}\.\d{2})/g, '$1$2')
+
+  // Remove garbage after numbers like "50.92++++"
+  .replace(/(\d+\.\d{2})[^\d\s]+/g, '$1');
 
 
-
-
-
-
-// ১. Transaction ID বের করা (আগের মতোই)
-
+// ======================
+// 1. Transaction ID (UNCHANGED)
+// ======================
 const allPotentialIds = text.match(/[A-Z0-9]{8,12}/g);
 
 const trx = allPotentialIds?.find(id => 
-
     !id.startsWith('01') && 
-
     !id.startsWith('8801') && 
-
     !/^(TOTAL|BALANCE|TIME|AM|PM|NEW|PAYMENT)$/i.test(id) && 
-
     id.length >= 8
-
 ) || null;
 
 
-
-// ২. Amount বের করা - এবার আমরা Logic Flow পরিবর্তন করছি
-
+// ======================
+// 2. Amount Detection (IMPROVED)
+// ======================
 let amt = null;
 
-
-
-// ধাপ ১: সরাসরি '+' চিহ্নের বাম পাশের ডেসিমেল সংখ্যাটি খোঁজা (বিকাশ চার্জ ফরম্যাট)
-
-// এটি ৫০.০০ + ০.৯২ থেকে সরাসরি ৫০.০০ নিবে, ৫০.৯২ এর দিকে তাকাবেই না।
-
-const plusMatch = text.match(/([\d,]+\.\d{2})\s*\+/);
-
-
+// 🔥 Step 1: Strong PLUS pattern (UPDATED)
+const plusMatch = text.match(/([\d]+\.\d{2})\s*\+\s*([\d]+\.\d{2})/);
 
 if (plusMatch) {
-
-    amt = plusMatch[1].replace(/,/g, '');
+    // Always take LEFT side (actual amount)
+    amt = plusMatch[1];
 
 } else {
 
-    // ধাপ ২: যদি '+' না থাকে, তবে 'পরিমাণ' বা 'Amount' কিউওয়ার্ডের পাশের সংখ্যা দেখা
-
+    // 🔥 Step 2: Keyword ভিত্তিক (UNCHANGED)
     const amountRegex = /(?:পরিমাণ|Amount|TxnAmount)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i;
-
     const amountMatch = text.match(amountRegex);
 
-    
-
     if (amountMatch) {
-
         amt = amountMatch[1].replace(/,/g, '');
 
     } else {
 
-        // ধাপ ৩: একদম লাস্ট অপশন হিসেবে ব্যালেন্স বাদে অন্য সংখ্যা খোঁজা
-
+        // 🔥 Step 3: Fallback (UNCHANGED)
         const allNumbers = text.match(/\d{1,3}(?:,\d{3})*(?:\.\d{2})/g) || [];
 
         const candidates = allNumbers
-
             .map(n => n.replace(/,/g, ''))
-
             .filter(n => {
-
                 const val = parseFloat(n);
 
-                // পেমেন্ট সাধারণত ছোট হয়, ব্যালেন্স অনেক বড়। 
-
-                // আর নতুন ব্যালেন্স বা Balance কিউওয়ার্ডের সাথে থাকা সংখ্যা বাদ।
-
-                const isLikelyBalance = text.includes(`ব্যালেন্স ${n}`) || text.includes(`Balance ${n}`);
+                const isLikelyBalance =
+                    text.includes(`ব্যালেন্স ${n}`) ||
+                    text.includes(`Balance ${n}`);
 
                 return val > 5 && !isLikelyBalance;
-
             });
 
-        
-
-        // যদি অনেক সংখ্যা থাকে, তবে ব্যালেন্স বাদ দিয়ে সবচেয়ে ছোটটি পেমেন্ট হওয়ার সম্ভাবনা বেশি
-
         amt = candidates.length > 0 ? candidates[0] : null;
-
     }
-
 }
 
 
-
-// ৩. ফাইনাল ভেরিফিকেশন (যদি ভুল করে ৫০.৯২ চলে আসে কিন্তু টেক্সটে ৫০.০০ থাকে)
-
-if (amt && text.includes('+')) {
-
-    const parts = text.match(/([\d,]+\.\d{2})\s*\+\s*([\d,]+\.\d{2})/);
-
-    if (parts && amt !== parts[1].replace(/,/g, '')) {
-
-        amt = parts[1].replace(/,/g, ''); // জোরপূর্বক ৫০.০০ সেট করা
-
+// ======================
+// 3. FINAL SAFETY OVERRIDE (UPDATED)
+// ======================
+if (text.includes('+')) {
+    const parts = text.match(/(\d+\.\d{2})\s*\+\s*(\d+\.\d{2})/);
+    if (parts) {
+        amt = parts[1]; // FORCE LEFT VALUE
     }
-
 }
 
 
-
-console.log(`${text}Final Result -> TrxID: ${trx}, Amount: ${amt}`);
-
-
-
-
+// ======================
+// ✅ FINAL RESULT
+// ======================
+console.log(`Final Result -> TrxID: ${trx}, Amount: ${amt}`);
 
 
 
