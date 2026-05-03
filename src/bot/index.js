@@ -810,35 +810,22 @@ const trx = allPotentialIds?.find(id =>
 let amt = null;
 let locked = false;
 let bestMatch = null;
+let bestMatch = null;
 
-// Split OCR into lines
-const lines = text.split('\n');
+const lines = text.split(/[\n,]/);
 
-console.log("\n0\n" + lines)
 for (let line of lines) {
-console.log("\n5\n" + lines)
-    // Only consider lines with "+"
+
     if (!line.includes('+')) continue;
 
-    // Extract clean numbers
     const match = line.match(/(\d{2,}\.\d{2})\s*\+\s*(\d{2,}\.\d{2})/);
 
-
-    console.log( "\n1\n" + match)
-
     if (match) {
-
-        const left = match[1];
-        const right = match[2];
-
-        // Ignore balance-like junk line (very important)
-        if (line.includes('+++') || line.includes('*')) continue;
-
-        bestMatch = left;
-        console.log(bestMatch)
-        break; // FIRST clean valid transaction line wins
+        bestMatch = match[1]; // LEFT SIDE (50.00)
+        break;
     }
 }
+
 
 if (bestMatch) {
     amt = bestMatch;
