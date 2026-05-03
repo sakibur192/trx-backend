@@ -810,7 +810,8 @@ const trx = allPotentialIds?.find(id =>
 let amt = null;
 let locked = false;
 let bestMatch = null;
-let bestMatch = null;
+// 🔥 Normalize Bengali digits → English digits
+text = text.replace(/[০-৯]/g, d => '০১২৩৪৫৬৭৮৯'.indexOf(d));
 
 const lines = text.split(/[\n,]/);
 
