@@ -777,11 +777,9 @@ const ocrScanningText = await getMsg('ocr_status', '⏳ *Scanning Receipt with A
         const url = `https://api.telegram.org/file/bot${TOKEN}/${file.file_path}`;
         
         // Using 'eng+ben' to handle English (Nexus/bKash) and Bengali (bKash/Nagad) text
-        const { data: { text } } = await Tesseract.recognize(url, 'eng+ben');
-        
-   
+  const { data: { text: rawText } } = await Tesseract.recognize(url, 'eng+ben');
 
-let text = text;
+let text = rawText;
 
 // ======================
 // 🧹 STEP 0: CLEAN OCR TEXT (NEW)
