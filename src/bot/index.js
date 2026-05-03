@@ -3,7 +3,8 @@ const Tesseract = require('tesseract.js');
 const db = require('../db'); 
 const fs = require("fs");
 const path = require("path");
-
+const Tesseract = require('tesseract.js');
+const { createCanvas, loadImage } = require('canvas'); // Requires 'canvas' package
 
 
 
@@ -912,8 +913,38 @@ const ocrScanningText = await getMsg('ocr_status', '⏳ *Scanning Receipt with A
         const file = await bot.getFile(msg.photo[msg.photo.length - 1].file_id);
         const url = `https://api.telegram.org/file/bot${TOKEN}/${file.file_path}`;
         
+
+
+const img = await loadImage(url);
+const width = img.width;
+const height = img.height;
+
+// Define crop boundaries (Middle 60%)
+const cropTop = height * 0.2;
+const cropHeight = height * 0.6;
+
+// Create a canvas for the cropped area
+const canvas = createCanvas(width, cropHeight);
+const ctx = canvas.getContext('2d');
+
+// drawImage(image, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight)
+ctx.drawImage(img, 0, cropTop, width, cropHeight, 0, 0, width, cropHeight);
+
+// Convert canvas to Buffer for Tesseract
+const croppedBuffer = canvas.toBuffer('image/jpeg');
+
+// 2. OCR RECOGNITION ON CROPPED IMAGE
+const { data: { text } } = await Tesseract.recognize(croppedBuffer, 'eng+ben');
+
+
+
+
+
+
+
+
         // Using 'eng+ben' to handle English (Nexus/bKash) and Bengali (bKash/Nagad) text
-        const { data: { text } } = await Tesseract.recognize(url, 'eng+ben');
+     //   const { data: { text } } = await Tesseract.recognize(url, 'eng+ben');
         
 
 
