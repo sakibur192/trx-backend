@@ -811,9 +811,9 @@ let amt = null;
 let locked = false;
 let bestMatch = null;
 // 🔥 Normalize Bengali digits → English digits
-text = text.replace(/[০-৯]/g, d => '০১২৩৪৫৬৭৮৯'.indexOf(d));
+let xtext = text.replace(/[০-৯]/g, d => '০১২৩৪৫৬৭৮৯'.indexOf(d));
 
-const lines = text.split(/[\n,]/);
+const lines = xtext.split(/[\n,]/);
 
 for (let line of lines) {
 
