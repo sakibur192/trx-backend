@@ -915,6 +915,12 @@ const ocrScanningText = await getMsg('ocr_status', '⏳ *Scanning Receipt with A
         // Using 'eng+ben' to handle English (Nexus/bKash) and Bengali (bKash/Nagad) text
         const { data: { text } } = await Tesseract.recognize(url, 'eng+ben');
         
+
+
+
+
+
+
         // --- 1. OPTIMIZED TRANSACTION ID LOGIC ---
         // We look for 8-12 character alphanumeric strings.
         // We filter out anything that looks like a Bangladesh phone number (starting with 01 or 8801).
@@ -943,38 +949,55 @@ const ocrScanningText = await getMsg('ocr_status', '⏳ *Scanning Receipt with A
 
 
 
-        // --- ১. OPTIMIZED TRANSACTION ID LOGIC ---
-// bKash এবং অন্যান্য গেটওয়ের জন্য Alphanumeric ID ফিল্টার
-const allPotentialIds = text.match(/[A-Z0-9]{8,12}/g);
+// const file = await bot.getFile(msg.photo[msg.photo.length - 1].file_id);
+// const url = `https://api.telegram.org/file/bot${TOKEN}/${file.file_path}`;
+// const { data: { text } } = await Tesseract.recognize(url, 'eng+ben');
+// --- Helper: Convert Bengali digits to English digits ---
+const convertBenToEng = (str) => {
+    const benDigits = {'০':'0','১':'1','২':'2','৩':'3','৪':'4','৫':'5','৬':'6','৭':'7','৮':'8','৯':'9'};
+    return str.replace(/[০-৯]/g, d => benDigits[d]);
+};
 
-const trx = allPotentialIds?.find(id => 
-    /[A-Z]/.test(id) &&           // অন্তত একটি অক্ষর থাকতে হবে (যাতে ফোন নাম্বার না নেয়)
-    !id.startsWith('01') &&       // ০১ দিয়ে শুরু হওয়া ফোন নাম্বার বাদ
-    !id.startsWith('8801') &&     // ৮৮০১ দিয়ে শুরু হওয়া ফোন নাম্বার বাদ
-    id.length >= 8
-) || null;
+const cleanText = convertBenToEng(text);
 
-// --- ২. OPTIMIZED AMOUNT LOGIC (THE "PERFECTION" MIX) ---
+// --- ১. OPTIMIZED TRANSACTION ID LOGIC ---
+// Matches alphanumeric 8-12 chars (bKash/Nagad) OR 10-digit numeric (NexusPay)
+const allPotentialIds = cleanText.match(/[A-Z0-9]{8,12}/g);
+
+const trx = allPotentialIds?.find(id => {
+    const isPhoneNumber = /^(01|8801|\+8801)/.test(id);
+    const hasLetters = /[A-Z]/.test(id);
+    const isNexusId = /^\d{10}$/.test(id); // NexusPay IDs are usually 10 digits
+    
+    // Accept if it's a Nexus ID OR (it's not a phone number AND has at least one letter)
+    return (isNexusId || (!isPhoneNumber && hasLetters)) && id.length >= 8;
+}) || null;
+
+// --- ২. OPTIMIZED AMOUNT LOGIC ---
 let amt = null;
 
-// Priority 1: bKash New UI Specific (যেখানে মূল টাকার পর '+' থাকে)
-const bKashSplitAmt = text.match(/([\d,]+\.\d{2})\s?\+/);
+// Priority 1: bKash breakdown logic (captures the principal amount before the '+')
+// Example: "৳3,900.00 + ৳72.15" -> captures 3,900.00
+const bKashSplitAmt = cleanText.match(/([\d,]+\.\d{2})\s?\+/);
 
-// Priority 2: Standard Keywords (Amount, Total, TxnAmount)
-const baseAmtMatch = text.match(/(?:পরিমাণ|Amount|Total|TxnAmount)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
+// Priority 2: Nagad/Nexus/bKash Specific Keywords
+// Matches "Amount", "পরিমাণ", "TxnAmount" followed by digits
+const baseAmtMatch = cleanText.match(/(?:পরিমাণ|Amount|TxnAmount)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
+
+// Priority 3: "Total" keyword (fallback for some bKash layouts)
+const totalAmtMatch = cleanText.match(/(?:সর্বমোট|Total)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
 
 if (bKashSplitAmt) {
-    // এটি আপনার স্ক্রিনশট থেকে ৪,৯০০.০০ বের করবে
     amt = bKashSplitAmt[1].replace(/,/g, '');
 } else if (baseAmtMatch) {
-    // এটি কিওয়ার্ডের পাশের অ্যামাউন্ট নেবে
     amt = baseAmtMatch[1].replace(/,/g, '');
+} else if (totalAmtMatch) {
+    amt = totalAmtMatch[1].replace(/,/g, '');
 } else {
-    // Priority 3: Fallback (যদি কিছুই না মেলে তবে প্রথম ডেসিমেল)
-    const fallBackAmt = text.match(/([\d,]+\.\d{2})/);
+    // Priority 4: Fallback to the first decimal found (risky but useful)
+    const fallBackAmt = cleanText.match(/([\d,]+\.\d{2})/);
     amt = fallBackAmt ? fallBackAmt[1].replace(/,/g, '') : null;
 }
-
 
 
         // Clean up the "Reading" message
