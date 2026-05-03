@@ -784,39 +784,45 @@ const url = `https://api.telegram.org/file/bot${TOKEN}/${file.file_path}`;
 const { data: { text } } = await Tesseract.recognize(url, 'eng+ben');
 
 // ২. TRANSACTION ID লজিক
+// --- ১. TRANSACTION ID ফিক্স (আরও ফ্লেক্সিবল) ---
 const allPotentialIds = text.match(/[A-Z0-9]{8,12}/g);
 const trx = allPotentialIds?.find(id => 
-    /[A-Z]/.test(id) &&           // নিশ্চিত করে এটি শুধু নাম্বার নয় (ফোন নাম্বার ফিল্টার)
-    !id.startsWith('01') &&       // ০১ দিয়ে শুরু হওয়া নাম্বার বাদ
-    !id.startsWith('8801') &&     
+    /[A-Z]/.test(id) && 
+    !/^\d+$/.test(id) && // নিশ্চিত করে শুধু নাম্বার নয়
+    !id.startsWith('01') && 
     id.length >= 8
 ) || null;
 
-// ৩. AMOUNT লজিক (নিখুঁত করার জন্য প্রায়োরিটি পরিবর্তন)
+// --- ২. AMOUNT ফিক্স (আপনার সমস্যাগুলো সমাধানের জন্য আপডেট) ---
 let amt = null;
 
-// Priority 1: bKash Specific (যেখানে মূল টাকার পর '+' থাকে)
-const bKashSplitAmt = text.match(/([\d,]+\.\d{2})\s?\+/);
+// লজিক ১: মূল টাকা সবসময় চার্জের চেয়ে বড় হয়। 
+// তাই আমরা সব ডেসিমেল নাম্বার বের করে সবচেয়ে বড়টি নেব (বিকাশ ব্যালেন্স বাদে)।
+const allAmounts = text.match(/([\d,]+\.\d{2})/g);
 
-// Priority 2: Specific Keywords (Total বাদ দিয়ে শুধু Amount বা TxnAmount খোঁজা)
-// কারণ 'Total' অনেক সময় চার্জসহ টাকাকে নির্দেশ করে
-const baseAmtMatch = text.match(/(?:পরিমাণ|Amount|TxnAmount)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
+if (allAmounts) {
+    const cleanedAmts = allAmounts
+        .map(a => parseFloat(a.replace(/,/g, '')))
+        .filter(a => a > 5); // ৫ টাকার নিচের "Fee" বা "VAT" ফিল্টার করার জন্য
 
-// Priority 3: Fallback for Nagad/NexusPay (যেখানে 'Total' ই একমাত্র কিওয়ার্ড)
-const totalAmtMatch = text.match(/(?:সর্বমোট|Total)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
+    // লজিক ২: বিকাশের সেই নির্দিষ্ট ফরম্যাট (Amount + Fee)
+    const bKashSplitAmt = text.match(/([\d,]+\.\d{2})\s?\+/);
 
-if (bKashSplitAmt) {
-    amt = bKashSplitAmt[1].replace(/,/g, '');
-} else if (baseAmtMatch) {
-    amt = baseAmtMatch[1].replace(/,/g, '');
-} else if (totalAmtMatch) {
-    amt = totalAmtMatch[1].replace(/,/g, '');
-} else {
-    // Priority 4: Fallback (যদি কোনো কিওয়ার্ড না মেলে তবে প্রথম ডেসিমেল)
-    const fallBackAmt = text.match(/([\d,]+\.\d{2})/);
-    amt = fallBackAmt ? fallBackAmt[1].replace(/,/g, '') : null;
+    if (bKashSplitAmt) {
+        amt = bKashSplitAmt[1].replace(/,/g, '');
+    } else {
+        // লজিক ৩: কিউওয়ার্ড ভিত্তিক সার্চ (পরিমাণ, Amount, TxnAmount)
+        // এখানে 'Total Fee' বা 'Total' এর বদলে 'Amount' কে প্রায়োরিটি দেওয়া হয়েছে
+        const amountPriority = text.match(/(?:পরিমাণ|Amount|TxnAmount)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
+        
+        if (amountPriority) {
+            amt = amountPriority[1].replace(/,/g, '');
+        } else {
+            // যদি কিছুই না পাওয়া যায়, তবে প্রাপ্ত লিস্টের প্রথম বড় সংখ্যাটি নিন
+            amt = cleanedAmts.length > 0 ? cleanedAmts[0].toString() : null;
+        }
+    }
 }
-
 
 
 
