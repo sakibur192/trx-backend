@@ -687,7 +687,6 @@ async function extractTransactionData(imageUrl) {
         // ২. OCR.space এপিআই কল
         const form = new FormData();
         form.append('apikey', OCR_API_KEY);
-        form.append('language', 'ben');
         form.append('OCREngine', '2'); // ঝাপসা ছবির জন্য অপরিহার্য
         form.append('file', buffer, { filename: 'image.jpg' });
 
