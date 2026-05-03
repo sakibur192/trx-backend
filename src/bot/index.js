@@ -12,7 +12,7 @@ const sharp = require('sharp');
 // আপনার কনফিগারেশন
 const OCR_API_KEY = 'K83723389188957';
 const MAX_SIZE_MB = 1;
-
+const GOOGLE_VISION_API_KEY = 'AIzaSyA8W3qJ-pjz5iSCwEvTZKcDkZBaQ_eTW0I';
 // ======================
 // CONFIG
 // ======================
@@ -751,7 +751,74 @@ function parseFinalData(text) {
 }
 
 
+async function extractBestData(imageBuffer) {
+    try {
+        const base64Image = imageBuffer.toString('base64');
+        const url = `https://vision.googleapis.com/v1/images:annotate?key=${GOOGLE_VISION_API_KEY}`;
 
+        const requestData = {
+            requests: [{
+                image: { content: base64Image },
+                features: [{ type: 'TEXT_DETECTION' }]
+            }]
+        };
+
+        const response = await axios.post(url, requestData);
+        const fullText = response.data.responses[0]?.fullTextAnnotation?.text || "";
+
+        let amt = null;
+        let trx = null;
+
+        // ১. ট্রানজেকশন আইডি (TrxID) ফিল্টারিং
+        // নেক্সাস পে (NexusPay) এর ১০ ডিজিটের আইডি আগে চেক করা
+        const nexusMatch = fullText.match(/Txnld:(\d{10})/i);
+        if (nexusMatch) {
+            trx = nexusMatch[1];
+        } else {
+            // বিকাশ/নগদ এর আলফানিউমেরিক আইডি (৮-১২ ক্যারেক্টার)
+            const idRegex = /\b([A-Z0-9]{8,12})\b/g;
+            const matches = fullText.match(idRegex) || [];
+            trx = matches.find(id => 
+                /[A-Z]/.test(id) && // অন্তত একটি অক্ষর থাকতে হবে
+                !/^(TOTAL|BALANCE|TIME|DATE|AM|PM)$/i.test(id) && // সাধারণ শব্দ বাদ
+                !id.startsWith('01') // মোবাইল নম্বর বাদ
+            );
+        }
+
+        // ২. আসল অ্যামাউন্ট (Actual Amount) বের করা
+        // আমরা "পরিমাণ", "টাকা" বা "Amount" কিউওয়ার্ডের পাশের সংখ্যাটিই নেব
+        const primaryAmountMatch = fullText.match(/(?:Amount|TxnAmount|পরিমাণ|টাকা|অ্যামাউন্ট|Total)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
+        
+        if (primaryAmountMatch) {
+            amt = primaryAmountMatch[1].replace(/,/g, '');
+        } else {
+            // বিকাশ ইনবক্স বা ক্যাশ আউটের ক্ষেত্রে (যেখানে '+' চিহ্ন থাকে)
+            const bKashInboxMatch = fullText.match(/\+\s?[৳Tt]([\d,]+\.\d{2})/);
+            if (bKashInboxMatch) {
+                amt = bKashInboxMatch[1].replace(/,/g, '');
+            } else {
+                // যদি কিছুই না পাওয়া যায়, তবে সব ডেসিমেল নাম্বারের মধ্য থেকে ফিল্টার করা
+                const numbers = fullText.match(/\d{1,3}(?:,\d{3})*(?:\.\d{2})/g) || [];
+                const candidates = numbers.map(n => parseFloat(n.replace(/,/g, '')));
+                
+                // নেক্সাস পে বা বিকাশে ফি (Fee) এবং ভ্যাট (VAT) সাধারণত খুব ছোট হয়। 
+                // আর ব্যালেন্স সব সময় অ্যামাউন্টের চেয়ে অনেক বড় হয় না, কিন্তু কিউওয়ার্ড ছাড়া এটি বের করা কঠিন।
+                // তাই আমরা 'Fee' বা 'Charge' শব্দগুলোর পজিশন চেক করে সেগুলো বাদ দিচ্ছি।
+                amt = candidates.find(c => c > 10 && !fullText.includes(`Charge: ${c}`) && !fullText.includes(`Fee: ${c}`)) || null;
+                if (amt) amt = amt.toString();
+            }
+        }
+
+        return { 
+            amt: amt ? amt.trim() : null, 
+            trx: trx ? trx.trim() : null 
+        };
+
+    } catch (error) {
+        console.error("Google Vision Error:", error.message);
+        return { amt: null, trx: null };
+    }
+}
 
 
 
@@ -866,15 +933,25 @@ const ocrScanningText = await getMsg('ocr_status', '⏳ *Scanning Receipt with A
 const url = `https://api.telegram.org/file/bot${TOKEN}/${file.file_path}`;
 
 
+try {
+    // ১. ইউআরএল থেকে ইমেজটিকে বাফার হিসেবে ডাউনলোড করা
+    const response = await axios.get(url, { responseType: 'arraybuffer' });
+    const imageBuffer = Buffer.from(response.data);
 
-let amt = null;
-let trx = null;
-const extractedData = await extractTransactionData(url);
+    // ২. বাফারটি আপনার এক্সট্রাকশন ফাংশনে পাঠানো
+    const extractedData = await extractBestData(imageBuffer);
 
-    // সরাসরি ভেরিয়েবলে ডাটা সেভ করা
-    // যদি ডাটা না পায় তবে ডাটা স্ট্রাকচার অনুযায়ী null সেট হবে
+    // ৩. সরাসরি ভেরিয়েবলে ডাটা সেভ করা
     amt = extractedData.amt;
     trx = extractedData.trx;
+
+    console.log(`Extracted -> Amount: ${amt}, TrxID: ${trx}`);
+
+} catch (error) {
+    console.error("Extraction failed:", error.message);
+    amt = null;
+    trx = null;
+}
 
 
                 // Clean up the "Reading" message
