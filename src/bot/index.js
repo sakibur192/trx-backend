@@ -909,33 +909,62 @@ const ocrScanningText = await getMsg('ocr_status', '⏳ *Scanning Receipt with A
     const loading = await bot.sendMessage(chatId, `${ocrScanningText}`);
     
     try {
+
         const file = await bot.getFile(msg.photo[msg.photo.length - 1].file_id);
-        const url = `https://api.telegram.org/file/bot${TOKEN}/${file.file_path}`;
-        
-        // Using 'eng+ben' to handle English (Nexus/bKash) and Bengali (bKash/Nagad) text
-        const { data: { text } } = await Tesseract.recognize(url, 'eng+ben');
-        
+const url = `https://api.telegram.org/file/bot${TOKEN}/${file.file_path}`;
 
-        const allPotentialIds = text.match(/[A-Z0-9]{8,12}/g);
-        const trx = allPotentialIds?.find(id => 
-            !id.startsWith('01') && 
-            !id.startsWith('8801') && 
-            id.length >= 8
-        ) || null;
+// Using 'eng+ben' for multi-language support as seen in the images
+const { data: { text } } = await Tesseract.recognize(url, 'eng+ben');
 
-        let amt = null;
-        
+// --- 1. REFINED TRANSACTION ID EXTRACTION ---
+// Patterns observed: 75A2129V, DDT8N3CI2K, 6408688276, DE27QOKZL1, 75A0302N
+// We need to allow lowercase for some OCR errors and handle purely numeric IDs (NexusPay).
+const idPatterns = [
+    /(?:ট্রানজেকশন আইডি|Transaction ID|TxnId)[:\s]*([A-Z0-9]{8,12})/i, // Explicit labels
+    /\b([A-Z0-9]{10})\b/i, // Standard 10-char bKash/Nagad IDs
+];
 
-        const baseAmtMatch = text.match(/(?:পরিমাণ|Amount|TxnAmount)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
-        
-        if (baseAmtMatch) {
-            amt = baseAmtMatch[1].replace(/,/g, '');
-        } else {
-
-            const fallBackAmt = text.match(/([\d,]+\.\d{2})/);
-            amt = fallBackAmt ? fallBackAmt[1].replace(/,/g, '') : null;
+let trx = null;
+for (const pattern of idPatterns) {
+    const match = text.match(pattern);
+    if (match) {
+        const potentialId = match[1].toUpperCase();
+        // Exclude phone numbers starting with 01 or 8801
+        if (!potentialId.startsWith('01') && !potentialId.startsWith('8801')) {
+            trx = potentialId;
+            break;
         }
+    }
+}
 
+// --- 2. REFINED AMOUNT EXTRACTION ---
+// We must distinguish between 'Amount' (base) and 'Total' (base + fee).
+// Keywords: পরিমাণ, Amount, TxnAmount, Total.
+let amt = null;
+
+// Regex to capture the first currency value after a specific keyword
+// Specifically targeting the base amount (পরিমাণ / Amount) before looking at totals.
+const amtMatch = text.match(/(?:পরিমাণ|Amount|TxnAmount)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
+
+if (amtMatch) {
+    amt = amtMatch[1].replace(/,/g, '');
+} else {
+    // Fallback for bKash new UI where "Total" is often easier to read, 
+    // but we look for the addition pattern: ৳3,900.00 + ৳72.15
+    const additionPattern = /([0-9,]+\.\d{2})\s?\+\s?[0-9,]+\.\d{2}/;
+    const addMatch = text.match(additionPattern);
+    
+    if (addMatch) {
+        amt = addMatch[1].replace(/,/g, '');
+    } else {
+        // Last resort: find any currency-formatted number that isn't a "Fee" or "Vat"
+        const allAmounts = text.match(/([\d,]+\.\d{2})/g);
+        if (allAmounts && allAmounts.length > 0) {
+            // Usually, the largest number or the one not labeled 'Fee/Vat' is the amount
+            amt = allAmounts[0].replace(/,/g, '');
+        }
+    }
+}
 
         // Clean up the "Reading" message
         bot.deleteMessage(chatId, loading.message_id).catch(() => {});
