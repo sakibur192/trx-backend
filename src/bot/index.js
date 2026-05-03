@@ -779,67 +779,27 @@ const ocrScanningText = await getMsg('ocr_status', '⏳ *Scanning Receipt with A
         // Using 'eng+ben' to handle English (Nexus/bKash) and Bengali (bKash/Nagad) text
         const { data: { text } } = await Tesseract.recognize(url, 'eng+ben');
         
-        // --- 1. OPTIMIZED TRANSACTION ID LOGIC ---
-        // We look for 8-12 character alphanumeric strings.
-        // We filter out anything that looks like a Bangladesh phone number (starting with 01 or 8801).
-        // const allPotentialIds = text.match(/[A-Z0-9]{8,12}/g);
-        // const trx = allPotentialIds?.find(id => 
-        //     !id.startsWith('01') && 
-        //     !id.startsWith('8801') && 
-        //     id.length >= 8
-        // ) || null;
+   
+        const allPotentialIds = text.match(/[A-Z0-9]{8,12}/g);
+        const trx = allPotentialIds?.find(id => 
+            !id.startsWith('01') && 
+            !id.startsWith('8801') && 
+            id.length >= 8
+        ) || null;
 
-        // --- 2. OPTIMIZED AMOUNT LOGIC ---
-        // To get the Base Amount (e.g., 3900 instead of 3972), we prioritize specific keywords.
-        // let amt = null;
+  
+        let amt = null;
         
-        // Priority 1: Look for "Amount" or "পরিমাণ" (This hits your 380, 15800, and 3900 targets)
-        // const baseAmtMatch = text.match(/(?:পরিমাণ|Amount|TxnAmount)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
+   
+        const baseAmtMatch = text.match(/(?:পরিমাণ|Amount|TxnAmount)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
         
-        // if (baseAmtMatch) {
-        //     amt = baseAmtMatch[1].replace(/,/g, '');
-        // } else {
-        //     // Priority 2: Fallback to any decimal number if keywords aren't found (NexusPay popup case)
-        //     const fallBackAmt = text.match(/([\d,]+\.\d{2})/);
-        //     amt = fallBackAmt ? fallBackAmt[1].replace(/,/g, '') : null;
-        // }
-
-
-
-
-        // --- ১. OPTIMIZED TRANSACTION ID LOGIC ---
-// bKash এবং অন্যান্য গেটওয়ের জন্য Alphanumeric ID ফিল্টার
-const allPotentialIds = text.match(/[A-Z0-9]{8,12}/g);
-
-const trx = allPotentialIds?.find(id => 
-    /[A-Z]/.test(id) &&           // অন্তত একটি অক্ষর থাকতে হবে (যাতে ফোন নাম্বার না নেয়)
-    !id.startsWith('01') &&       // ০১ দিয়ে শুরু হওয়া ফোন নাম্বার বাদ
-    !id.startsWith('8801') &&     // ৮৮০১ দিয়ে শুরু হওয়া ফোন নাম্বার বাদ
-    id.length >= 8
-) || null;
-
-// --- ২. OPTIMIZED AMOUNT LOGIC (THE "PERFECTION" MIX) ---
-let amt = null;
-
-// Priority 1: bKash New UI Specific (যেখানে মূল টাকার পর '+' থাকে)
-const bKashSplitAmt = text.match(/([\d,]+\.\d{2})\s?\+/);
-
-// Priority 2: Standard Keywords (Amount, Total, TxnAmount)
-const baseAmtMatch = text.match(/(?:পরিমাণ|Amount|Total|TxnAmount)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
-
-if (bKashSplitAmt) {
-    // এটি আপনার স্ক্রিনশট থেকে ৪,৯০০.০০ বের করবে
-    amt = bKashSplitAmt[1].replace(/,/g, '');
-} else if (baseAmtMatch) {
-    // এটি কিওয়ার্ডের পাশের অ্যামাউন্ট নেবে
-    amt = baseAmtMatch[1].replace(/,/g, '');
-} else {
-    // Priority 3: Fallback (যদি কিছুই না মেলে তবে প্রথম ডেসিমেল)
-    const fallBackAmt = text.match(/([\d,]+\.\d{2})/);
-    amt = fallBackAmt ? fallBackAmt[1].replace(/,/g, '') : null;
-}
-
-
+        if (baseAmtMatch) {
+            amt = baseAmtMatch[1].replace(/,/g, '');
+        } else {
+            // Priority 2: Fallback to any decimal number if keywords aren't found (NexusPay popup case)
+            const fallBackAmt = text.match(/([\d,]+\.\d{2})/);
+            amt = fallBackAmt ? fallBackAmt[1].replace(/,/g, '') : null;
+        }
 
         // Clean up the "Reading" message
         bot.deleteMessage(chatId, loading.message_id).catch(() => {});
