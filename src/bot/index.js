@@ -781,7 +781,7 @@ const ocrScanningText = await getMsg('ocr_status', '⏳ *Scanning Receipt with A
         
    
 
-let text = rawText;
+let text = text;
 
 // ======================
 // 🧹 STEP 0: CLEAN OCR TEXT (NEW)
