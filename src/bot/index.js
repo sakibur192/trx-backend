@@ -810,40 +810,32 @@ const trx = allPotentialIds?.find(id =>
 let amt = null;
 let locked = false;
 
-const lines = text.split(/[\n,]/);
-
-let candidates = [];
-
-for (let line of lines) {
-
-    const match = line.match(/(\d{2,}\.\d{2})\s*\+\s*(\d{2,}\.\d{2})/);
- console.log("\nmy ams3 \n" + match + "\n my ams \n")
 
 
-    if (!match) continue;
+let x = text
+const normalized = x.replace(/[০-৯]/g, d => '০১২৩৪৫৬৭৮৯'.indexOf(d));
 
-    const left = match[1];
-    const right = match[2];
- console.log("\nmy ams1 \n" + left + "\n my ams \n")
-  console.log("\nmy ams2 \n" + right + "\n my ams \n")
-    // ❗ ignore obvious balance line pattern
-    if (line.includes('+++') || line.includes('*')) continue;
+// 2. directly find ALL valid "number + number" patterns anywhere
+const matches = [...normalized.matchAll(/(\d{2,}\.\d{2})\s*\+\s*(\d{2,}\.\d{2})/g)];
 
-    candidates.push({ left, right, line });
+console.log("matches:", matches);
+
+// 3. pick first valid transaction-like match
+if (matches.length > 0) {
+    for (let m of matches) {
+
+        const left = parseFloat(m[1]);
+        const right = parseFloat(m[2]);
+
+        // ignore obvious balance anomaly (very large or weird patterns)
+        if (left > 10000) continue;
+
+        amt = m[1];
+        break;
+    }
 }
- console.log("\nmy amsdfsds \n" + candidates + "\n my ams \n")
-// 🧠 choose best candidate
-if (candidates.length > 0) {
 
-    // remove values that appear as "right side" elsewhere (balance noise filter)
-    const rightValues = candidates.map(c => c.right);
-
-    const filtered = candidates.filter(c => !rightValues.includes(c.left));
-
-    const finalPick = (filtered[0] || candidates[0]);
-
-    amt = finalPick.left;
-    console.log("my ams " + amt)
+if(amt != null){
     locked = true
 }
 
