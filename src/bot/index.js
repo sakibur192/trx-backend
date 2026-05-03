@@ -831,6 +831,7 @@ for (let line of lines) {
         if (line.includes('+++') || line.includes('*')) continue;
 
         bestMatch = left;
+        console.log(bestMatch)
         break; // FIRST clean valid transaction line wins
     }
 }
