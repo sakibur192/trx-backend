@@ -811,8 +811,8 @@ let amt = null;
 let locked = false;
 let bestMatch = null;
 // 🔥 Normalize Bengali digits → English digits
-let xtext = text.replace(/(^|\s)[৮8](?=\d{2,}\.\d{2})/g, '$1');
-const lines = xtext.split(/[\n,]/);
+
+const lines = text.split(/[\n,]/);
 
 for (let line of lines) {
 
