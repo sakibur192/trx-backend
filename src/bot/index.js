@@ -889,7 +889,7 @@ if (amt && text.includes('+')) {
 
 
 
-console.log(`Final Result -> TrxID: ${trx}, Amount: ${amt}`);
+console.log(`${text}Final Result -> TrxID: ${trx}, Amount: ${amt}`);
 
 
 
