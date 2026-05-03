@@ -780,57 +780,130 @@ const ocrScanningText = await getMsg('ocr_status', '⏳ *Scanning Receipt with A
         const { data: { text } } = await Tesseract.recognize(url, 'eng+ben');
         
    
-// ১. Transaction ID বের করা
+
+
+
+
+
+
+
+// ১. Transaction ID বের করা (আগের মতোই)
+
 const allPotentialIds = text.match(/[A-Z0-9]{8,12}/g);
+
 const trx = allPotentialIds?.find(id => 
+
     !id.startsWith('01') && 
+
     !id.startsWith('8801') && 
+
     !/^(TOTAL|BALANCE|TIME|AM|PM|NEW|PAYMENT)$/i.test(id) && 
+
     id.length >= 8
+
 ) || null;
 
-// ২. Amount বের করা (Strict Logic)
+
+
+// ২. Amount বের করা - এবার আমরা Logic Flow পরিবর্তন করছি
+
 let amt = null;
 
-// ধাপ ১: সবচেয়ে গুরুত্বপূর্ণ - প্লাস চিহ্নের বাম পাশের সংখ্যাটি আগে খোঁজা
-// আমরা এখানে এমনভাবে Regex লিখেছি যাতে সে লাইনের একদম সুনির্দিষ্ট অংশটি ধরে
-const specificPlusMatch = text.match(/([0-9,]+\.[0-9]{2})\s*(?=\+\s*[৳Tk]*\s*[0-9,]+\.[0-9]{2})/);
 
-if (specificPlusMatch) {
-    // যদি '+' ফরম্যাট পায়, তবে অবশ্যই সেটিকে প্রথম প্রায়োরিটি দিবে (যেমন: ৫০.০০)
-    amt = specificPlusMatch[1].replace(/,/g, '');
+
+// ধাপ ১: সরাসরি '+' চিহ্নের বাম পাশের ডেসিমেল সংখ্যাটি খোঁজা (বিকাশ চার্জ ফরম্যাট)
+
+// এটি ৫০.০০ + ০.৯২ থেকে সরাসরি ৫০.০০ নিবে, ৫০.৯২ এর দিকে তাকাবেই না।
+
+const plusMatch = text.match(/([\d,]+\.\d{2})\s*\+/);
+
+
+
+if (plusMatch) {
+
+    amt = plusMatch[1].replace(/,/g, '');
+
 } else {
+
     // ধাপ ২: যদি '+' না থাকে, তবে 'পরিমাণ' বা 'Amount' কিউওয়ার্ডের পাশের সংখ্যা দেখা
-    // এবং নিশ্চিত করা যে এটি 'ব্যালেন্স' লাইনের আশেপাশে নেই
-    const lines = text.split('\n');
-    for (let line of lines) {
-        if ((line.includes('পরিমাণ') || line.includes('Amount') || line.includes('TxnAmount')) && !line.includes('সর্বমোট')) {
-            const m = line.match(/([\d,]+\.\d{2})/);
-            if (m) {
-                amt = m[1].replace(/,/g, '');
-                break;
-            }
-        }
-    }
-}
 
-// ধাপ ৩: যদি উপরের কোনোটিই কাজ না করে (যেমন নেক্সাস পে বা অন্য ফরম্যাট)
-if (!amt) {
-    const amountRegex = /(?:পরিমাণ|Amount|TxnAmount|Total|সর্বমোট)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i;
+    const amountRegex = /(?:পরিমাণ|Amount|TxnAmount)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i;
+
     const amountMatch = text.match(amountRegex);
-    amt = amountMatch ? amountMatch[1].replace(/,/g, '') : null;
+
+    
+
+    if (amountMatch) {
+
+        amt = amountMatch[1].replace(/,/g, '');
+
+    } else {
+
+        // ধাপ ৩: একদম লাস্ট অপশন হিসেবে ব্যালেন্স বাদে অন্য সংখ্যা খোঁজা
+
+        const allNumbers = text.match(/\d{1,3}(?:,\d{3})*(?:\.\d{2})/g) || [];
+
+        const candidates = allNumbers
+
+            .map(n => n.replace(/,/g, ''))
+
+            .filter(n => {
+
+                const val = parseFloat(n);
+
+                // পেমেন্ট সাধারণত ছোট হয়, ব্যালেন্স অনেক বড়। 
+
+                // আর নতুন ব্যালেন্স বা Balance কিউওয়ার্ডের সাথে থাকা সংখ্যা বাদ।
+
+                const isLikelyBalance = text.includes(`ব্যালেন্স ${n}`) || text.includes(`Balance ${n}`);
+
+                return val > 5 && !isLikelyBalance;
+
+            });
+
+        
+
+        // যদি অনেক সংখ্যা থাকে, তবে ব্যালেন্স বাদ দিয়ে সবচেয়ে ছোটটি পেমেন্ট হওয়ার সম্ভাবনা বেশি
+
+        amt = candidates.length > 0 ? candidates[0] : null;
+
+    }
+
 }
 
-// ৩. ফাইনাল সেফগার্ড (যদি ৫০.৯২ কোনোভাবে ঢুকে পড়ে)
-// আমরা চেক করছি টেক্সটে যদি ৫০.০০ আলাদা করে থাকে, তবে সেটাকেই ফাইনাল ধরবো
+
+
+// ৩. ফাইনাল ভেরিফিকেশন (যদি ভুল করে ৫০.৯২ চলে আসে কিন্তু টেক্সটে ৫০.০০ থাকে)
+
 if (amt && text.includes('+')) {
-    const forcedMatch = text.match(/([\d,]+\.\d{2})\s*\+/);
-    if (forcedMatch) {
-        amt = forcedMatch[1].replace(/,/g, '');
+
+    const parts = text.match(/([\d,]+\.\d{2})\s*\+\s*([\d,]+\.\d{2})/);
+
+    if (parts && amt !== parts[1].replace(/,/g, '')) {
+
+        amt = parts[1].replace(/,/g, ''); // জোরপূর্বক ৫০.০০ সেট করা
+
     }
+
 }
+
+
 
 console.log(`Final Result -> TrxID: ${trx}, Amount: ${amt}`);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
         // Clean up the "Reading" message
         bot.deleteMessage(chatId, loading.message_id).catch(() => {});
