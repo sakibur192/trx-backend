@@ -809,13 +809,38 @@ const trx = allPotentialIds?.find(id =>
 
 let amt = null;
 let locked = false;
-const strictPlus = text.match(/(\d{2,}\.\d{2})\s+\+\s+(\d{2,}\.\d{2})/);
+let bestMatch = null;
 
+// Split OCR into lines
+const lines = text.split('\n');
 
-if (strictPlus) {
-    amt = strictPlus[1];
-    locked = true; // 🔒 lock value so nothing overrides it
+for (let line of lines) {
+
+    // Only consider lines with "+"
+    if (!line.includes('+')) continue;
+
+    // Extract clean numbers
+    const match = line.match(/(\d{2,}\.\d{2})\s*\+\s*(\d{2,}\.\d{2})/);
+
+    if (match) {
+
+        const left = match[1];
+        const right = match[2];
+
+        // Ignore balance-like junk line (very important)
+        if (line.includes('+++') || line.includes('*')) continue;
+
+        bestMatch = left;
+        break; // FIRST clean valid transaction line wins
+    }
 }
+
+if (bestMatch) {
+    amt = bestMatch;
+      locked = true;
+}
+
+
 
 // ধাপ ১: সরাসরি '+' চিহ্নের বাম পাশের ডেসিমেল সংখ্যাটি খোঁজা (বিকাশ চার্জ ফরম্যাট)
 
