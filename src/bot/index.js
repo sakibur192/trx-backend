@@ -814,9 +814,9 @@ let locked = false;
 
 let x = text
 const normalized = x.replace(/[০-৯]/g, d => '০১২৩৪৫৬৭৮৯'.indexOf(d));
-
+const cleaned = normalized.replace(/(^|\s)[8](?=\d{2,}\.\d{2})/g, '$1');
 // 2. directly find ALL valid "number + number" patterns anywhere
-const matches = [...normalized.matchAll(/(\d{2,}\.\d{2})\s*\+\s*(\d{2,}\.\d{2})/g)];
+const matches = [...cleaned.matchAll(/(\d{2,}\.\d{2})\s*\+\s*(\d{2,}\.\d{2})/g)];
 
 console.log("matches:", matches);
 
