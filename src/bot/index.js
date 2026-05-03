@@ -916,88 +916,25 @@ const ocrScanningText = await getMsg('ocr_status', '⏳ *Scanning Receipt with A
         const { data: { text } } = await Tesseract.recognize(url, 'eng+ben');
         
 
+        const allPotentialIds = text.match(/[A-Z0-9]{8,12}/g);
+        const trx = allPotentialIds?.find(id => 
+            !id.startsWith('01') && 
+            !id.startsWith('8801') && 
+            id.length >= 8
+        ) || null;
 
-
-
-
-
-        // --- 1. OPTIMIZED TRANSACTION ID LOGIC ---
-        // We look for 8-12 character alphanumeric strings.
-        // We filter out anything that looks like a Bangladesh phone number (starting with 01 or 8801).
-        // const allPotentialIds = text.match(/[A-Z0-9]{8,12}/g);
-        // const trx = allPotentialIds?.find(id => 
-        //     !id.startsWith('01') && 
-        //     !id.startsWith('8801') && 
-        //     id.length >= 8
-        // ) || null;
-
-        // --- 2. OPTIMIZED AMOUNT LOGIC ---
-        // To get the Base Amount (e.g., 3900 instead of 3972), we prioritize specific keywords.
-        // let amt = null;
+        let amt = null;
         
-        // Priority 1: Look for "Amount" or "পরিমাণ" (This hits your 380, 15800, and 3900 targets)
-        // const baseAmtMatch = text.match(/(?:পরিমাণ|Amount|TxnAmount)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
+
+        const baseAmtMatch = text.match(/(?:পরিমাণ|Amount|TxnAmount)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
         
-        // if (baseAmtMatch) {
-        //     amt = baseAmtMatch[1].replace(/,/g, '');
-        // } else {
-        //     // Priority 2: Fallback to any decimal number if keywords aren't found (NexusPay popup case)
-        //     const fallBackAmt = text.match(/([\d,]+\.\d{2})/);
-        //     amt = fallBackAmt ? fallBackAmt[1].replace(/,/g, '') : null;
-        // }
+        if (baseAmtMatch) {
+            amt = baseAmtMatch[1].replace(/,/g, '');
+        } else {
 
-
-
-
-// const file = await bot.getFile(msg.photo[msg.photo.length - 1].file_id);
-// const url = `https://api.telegram.org/file/bot${TOKEN}/${file.file_path}`;
-// const { data: { text } } = await Tesseract.recognize(url, 'eng+ben');
-// --- Helper: Convert Bengali digits to English digits ---
-const convertBenToEng = (str) => {
-    const benDigits = {'০':'0','১':'1','২':'2','৩':'3','৪':'4','৫':'5','৬':'6','৭':'7','৮':'8','৯':'9'};
-    return str.replace(/[০-৯]/g, d => benDigits[d]);
-};
-
-const cleanText = convertBenToEng(text);
-
-// --- ১. OPTIMIZED TRANSACTION ID LOGIC ---
-// Matches alphanumeric 8-12 chars (bKash/Nagad) OR 10-digit numeric (NexusPay)
-const allPotentialIds = cleanText.match(/[A-Z0-9]{8,12}/g);
-
-const trx = allPotentialIds?.find(id => {
-    const isPhoneNumber = /^(01|8801|\+8801)/.test(id);
-    const hasLetters = /[A-Z]/.test(id);
-    const isNexusId = /^\d{10}$/.test(id); // NexusPay IDs are usually 10 digits
-    
-    // Accept if it's a Nexus ID OR (it's not a phone number AND has at least one letter)
-    return (isNexusId || (!isPhoneNumber && hasLetters)) && id.length >= 8;
-}) || null;
-
-// --- ২. OPTIMIZED AMOUNT LOGIC ---
-let amt = null;
-
-// Priority 1: bKash breakdown logic (captures the principal amount before the '+')
-// Example: "৳3,900.00 + ৳72.15" -> captures 3,900.00
-const bKashSplitAmt = cleanText.match(/([\d,]+\.\d{2})\s?\+/);
-
-// Priority 2: Nagad/Nexus/bKash Specific Keywords
-// Matches "Amount", "পরিমাণ", "TxnAmount" followed by digits
-const baseAmtMatch = cleanText.match(/(?:পরিমাণ|Amount|TxnAmount)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
-
-// Priority 3: "Total" keyword (fallback for some bKash layouts)
-const totalAmtMatch = cleanText.match(/(?:সর্বমোট|Total)[:\s]*[৳Tk]*\s?([\d,]+\.\d{2})/i);
-
-if (bKashSplitAmt) {
-    amt = bKashSplitAmt[1].replace(/,/g, '');
-} else if (baseAmtMatch) {
-    amt = baseAmtMatch[1].replace(/,/g, '');
-} else if (totalAmtMatch) {
-    amt = totalAmtMatch[1].replace(/,/g, '');
-} else {
-    // Priority 4: Fallback to the first decimal found (risky but useful)
-    const fallBackAmt = cleanText.match(/([\d,]+\.\d{2})/);
-    amt = fallBackAmt ? fallBackAmt[1].replace(/,/g, '') : null;
-}
+            const fallBackAmt = text.match(/([\d,]+\.\d{2})/);
+            amt = fallBackAmt ? fallBackAmt[1].replace(/,/g, '') : null;
+        }
 
 
         // Clean up the "Reading" message
