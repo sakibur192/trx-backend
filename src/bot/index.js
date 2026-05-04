@@ -505,7 +505,16 @@ bot.on("callback_query", async (query) => {
         bot.editMessageText(`❌ Rejected: ${pId}`, { chat_id: ADMIN_ID, message_id: query.message.message_id });
     }
 
+else if (data === "ocr_manual") {
+    delete userState[chatId]; // clear OCR state
 
+    userState[chatId] = { step: 'M_TRX' };
+
+    const title = await getMsg('manual_entry_start', "⌨️ *Manual Entry*");
+    const step1 = await getMsg('m_step_1', "Step 1: Enter **Transaction ID**:");
+
+    bot.sendMessage(chatId, `${title}\n${step1}`, { parse_mode: "Markdown" });
+}
 
 
 else if (data === "withdraw") {
@@ -945,7 +954,29 @@ const fileId = msg.photo[msg.photo.length - 1].file_id;
             const ocrSuccessTitle = await getMsg('ocr_success', '✅ *Scan Complete!*');
 const ocrPlayerPrompt = await getMsg('ocr_player_prompt', '👉 আপনার প্লেয়ার আইডি দিনঃ:');
 
-bot.sendMessage(chatId, `${ocrSuccessTitle}\n━━━━━━━━━━━━━━━\n🔑 *TRX ID:* \`${trx}\` \n💰 *Amount:* \`${amt}\` \n━━━━━━━━━━━━━━━\n${ocrPlayerPrompt}`);
+bot.sendMessage(chatId, `${ocrSuccessTitle}\n━━━━━━━━━━━━━━━\n🔑 *TRX ID:* \`${trx}\` \n💰 *Amount:* \`${amt}\` \n━━━━━━━━━━━━━━━\n${ocrPlayerPrompt}` , 
+
+
+
+
+
+{
+    parse_mode: "Markdown",
+    reply_markup: {
+        inline_keyboard: [
+            [
+                { text: "✏️ Edit Manually", callback_data: "ocr_manual" }
+            ]
+        ]
+    }
+
+
+
+
+
+
+
+);
         } else {
             // If the scan failed to find one of the two, switch to manual mode
 
