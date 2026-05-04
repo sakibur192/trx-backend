@@ -197,7 +197,7 @@ async function startVerificationRetry(chatId, data) {
 
 
         const nfMsg = await bot.sendMessage(chatId, notFoundErrorText);
-             bot.sendPhoto(ADMIN_ID, screenshot, {
+   bot.sendPhoto(ADMIN_ID, screenshot, {
     caption:
         `💰 *NEW DEPOSIT APPROVAL REQ*\n━━━━━━━━━━━━━━━\n` +
         `👤 ID: \`${playerId}\`\n` +
@@ -219,19 +219,19 @@ async function startVerificationRetry(chatId, data) {
 
 
 
-   const groupCaption = `📸নতুন ডিপোজিট\n` +
-                             `━━━━━━━━━━━━━━━\n` +
-                             `👤 ID: \`${playerId}\`\n` +
-                             `💰 Amt: ${amount}\n` +
-                             `🔑 TRX: \`${trx_id}\`\n` +
-                             `⚙️ Method: ${method}\n` +
-                             `━━━━━━━━━━━━━━━`;
+//    const groupCaption = `📸নতুন ডিপোজিট\n` +
+//                              `━━━━━━━━━━━━━━━\n` +
+//                              `👤 ID: \`${playerId}\`\n` +
+//                              `💰 Amt: ${amount}\n` +
+//                              `🔑 TRX: \`${trx_id}\`\n` +
+//                              `⚙️ Method: ${method}\n` +
+//                              `━━━━━━━━━━━━━━━`;
 
-        // sendPhoto ব্যবহার করে ছবি ও টেক্সট একসাথে পাঠানো
-        bot.sendPhoto(GROUP_ID, screenshot, {
-            caption: groupCaption,
-            parse_mode: "Markdown"
-        });
+//         // sendPhoto ব্যবহার করে ছবি ও টেক্সট একসাথে পাঠানো
+//         bot.sendPhoto(GROUP_ID, screenshot, {
+//             caption: groupCaption,
+//             parse_mode: "Markdown"
+//         });
 
 
 
@@ -503,7 +503,17 @@ bot.on("callback_query", async (query) => {
         bot.sendMessage(chatId, `${title}\n${step1}` );
     } 
     else if (data.startsWith("approve_")) {
+
+
+
+
+
+
         const [_, userId, trxId, pId] = data.split("_");
+
+
+           const photoId = query.message.photo?.slice(-1)[0]?.file_id;
+
         
         await db.query("UPDATE deposit_history SET status = 'success' WHERE trx_id = $1", [trxId]);
         
@@ -511,16 +521,67 @@ bot.on("callback_query", async (query) => {
         const groupMsg = await getMsg('group_dep_done', "💎 *Deposit Success*");
 
 
+
+           const groupCaption =`${groupMsg}\n🆔 ID: \`${pId}\`\n${depositCompletedStatus}`
+
+    if (photoId) {
+
+        bot.sendPhoto(GROUP_ID, photoId, {
+            caption: groupCaption,
+            parse_mode: "Markdown"
+        });
+
+    } else {
+        bot.sendMessage(GROUP_ID, `${groupMsg}\n🆔 ID: \`${pId}\`\n${depositCompletedStatus}`, { parse_mode: "Markdown" });
+    }
+
+
+
+
         bot.sendMessage(userId, userMsg );
 
-        const depositCompletedStatus = await getMsg(
-  'status_completed',
-  '💰 Status: Completed Successfully!'
-);
 
-        bot.sendMessage(GROUP_ID, `${groupMsg}\n🆔 ID: \`${pId}\`\n${depositCompletedStatus}`, { parse_mode: "Markdown" });
+
+        const depositCompletedStatus = await getMsg('status_completed','💰 Status: Completed Successfully!');
+
+
+        //bot.sendMessage(GROUP_ID, `${groupMsg}\n🆔 ID: \`${pId}\`\n${depositCompletedStatus}`, { parse_mode: "Markdown" });
         
-        bot.editMessageText(`✅ Approved: ${pId} (${trxId})`, { chat_id: ADMIN_ID, message_id: query.message.message_id });
+        // bot.editMessageText(`✅ Approved: ${pId} (${trxId})`, { chat_id: ADMIN_ID, message_id: query.message.message_id });
+   
+                        const msg = query.message;
+
+                        // If message has photo → edit caption
+                       if (msg.photo) {
+    await bot.editMessageCaption(
+        `✅ Approved: ${pId} (${trxId})`,
+        {
+            chat_id: ADMIN_ID,
+            message_id: msg.message_id,
+            parse_mode: "Markdown",
+            reply_markup: { inline_keyboard: [] } // force remove
+        }
+    );
+} else {
+    await bot.editMessageText(
+        `✅ Approved: ${pId} (${trxId})`,
+        {
+            chat_id: ADMIN_ID,
+            message_id: msg.message_id,
+            parse_mode: "Markdown",
+            reply_markup: { inline_keyboard: [] }
+        }
+    );
+}
+   
+   
+   
+   
+   
+   
+   
+   
+   
     } 
     else if (data.startsWith("reject_")) {
         const [_, userId, pId] = data.split("_");
@@ -528,18 +589,60 @@ bot.on("callback_query", async (query) => {
 
         const userMsg = await getMsg('user_dep_rej', "❌ *Deposit Rejected.*\nYour payment verification was unsuccessful. Contact support.");
         
+
+            const msg = query.message;
+    const photoId = msg.photo?.slice(-1)[0]?.file_id;
+
+
         const groupDepositRejected = await getMsg('group_dep_reject', '⚠️ *Deposit Rejected*');
 
         bot.sendMessage(userId, userMsg);
 
-        const depositFailedStatus = await getMsg(
-  'status_unsuccessful',
-  'Status: Unsuccessful.'
-);
+        const depositFailedStatus = await getMsg('status_unsuccessful','Status: Unsuccessful.');
 
-        bot.sendMessage(GROUP_ID, `${groupDepositRejected}\n🆔 ID: \`${pId}\`\n${depositFailedStatus}`, { parse_mode: "Markdown" });
+
+   if (photoId) {
+    
+    } else {
+        bot.sendMessage(GROUP_ID, groupCaption, {
+            parse_mode: "Markdown"
+        });
+    }
+
+
+       try {
+        if (msg.photo) {
+            await bot.editMessageCaption(
+                `❌ Rejected: ${pId}`,
+                {
+                    chat_id: ADMIN_ID,
+                    message_id: msg.message_id,
+                    parse_mode: "Markdown",
+                    reply_markup: { inline_keyboard: [] }
+                }
+            );
+        } else {
+            await bot.editMessageText(
+                `❌ Rejected: ${pId}`,
+                {
+                    chat_id: ADMIN_ID,
+                    message_id: msg.message_id,
+                    parse_mode: "Markdown",
+                    reply_markup: { inline_keyboard: [] }
+                }
+            );
+        }
+    } catch (err) {
+        console.log("Edit failed, fallback sending new message");
+        bot.sendMessage(ADMIN_ID, `❌ Rejected: ${pId}`);
+    }
+
+
+
+
+       // bot.sendMessage(GROUP_ID, `${groupDepositRejected}\n🆔 ID: \`${pId}\`\n${depositFailedStatus}`, { parse_mode: "Markdown" });
         
-        bot.editMessageText(`❌ Rejected: ${pId}`, { chat_id: ADMIN_ID, message_id: query.message.message_id });
+       // bot.editMessageText(`❌ Rejected: ${pId}`, { chat_id: ADMIN_ID, message_id: query.message.message_id });
     }
 
 else if (data === "ocr_manual") {
