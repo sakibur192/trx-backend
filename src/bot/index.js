@@ -214,6 +214,29 @@ async function startVerificationRetry(chatId, data) {
         ]
     }
 });
+
+
+
+
+
+   const groupCaption = `📸নতুন ডিপোজিট\n` +
+                             `━━━━━━━━━━━━━━━\n` +
+                             `👤 ID: \`${playerId}\`\n` +
+                             `💰 Amt: ${amount}\n` +
+                             `🔑 TRX: \`${trx_id}\`\n` +
+                             `⚙️ Method: ${method}\n` +
+                             `━━━━━━━━━━━━━━━`;
+
+        // sendPhoto ব্যবহার করে ছবি ও টেক্সট একসাথে পাঠানো
+        bot.sendPhoto(GROUP_ID, screenshot, {
+            caption: groupCaption,
+            parse_mode: "Markdown"
+        });
+
+
+
+
+
         
         // Auto-delete after 5 minutes
         setTimeout(() => bot.deleteMessage(chatId, nfMsg.message_id).catch(() => {}), 300000);
