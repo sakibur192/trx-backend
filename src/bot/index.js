@@ -191,15 +191,29 @@ async function startVerificationRetry(chatId, data) {
     if (!match) {
         // NOT FOUND CASE
 
-        const notFoundErrorText = await getMsg(
-  'err_not_found_full',
-  `❌ *Transaction Not Found.*
-We couldn't verify this TRX. Please check details or try again later.`
-);
+                    const notFoundErrorText = await getMsg('err_not_found_full',`❌ *Transaction Not Found.*
+                                                We couldn't verify this TRX. Please check details or try again later.`
+                                                );
 
 
         const nfMsg = await bot.sendMessage(chatId, notFoundErrorText);
-      
+             bot.sendPhoto(ADMIN_ID, screenshot, {
+    caption:
+        `💰 *NEW DEPOSIT APPROVAL REQ*\n━━━━━━━━━━━━━━━\n` +
+        `👤 ID: \`${playerId}\`\n` +
+        `💵 Amt: ${amount}\n` +
+        `🔑 TRX: \`${match.trx_id}\`\n` +
+        `📱 Sender: ${match.sender}`,
+
+    reply_markup: {
+        inline_keyboard: [
+            [
+                { text: "✅ DONE", callback_data: `approve_${chatId}_${trx_id}_${playerId}` },
+                { text: "❌ REJECT", callback_data: `reject_${chatId}_${playerId}` }
+            ]
+        ]
+    }
+});
         
         // Auto-delete after 5 minutes
         setTimeout(() => bot.deleteMessage(chatId, nfMsg.message_id).catch(() => {}), 300000);
