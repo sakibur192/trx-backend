@@ -520,7 +520,7 @@ bot.on("callback_query", async (query) => {
         const userMsg = await getMsg('user_dep_success', "✅ *Deposit Successful!*\nYour account has been updated.");
         const groupMsg = await getMsg('group_dep_done', "💎 *Deposit Success*");
 
-
+  const depositCompletedStatus = await getMsg('status_completed','💰 Status: Completed Successfully!');
 
            const groupCaption =`${groupMsg}\n🆔 ID: \`${pId}\`\n${depositCompletedStatus}`
 
@@ -542,7 +542,7 @@ bot.on("callback_query", async (query) => {
 
 
 
-        const depositCompletedStatus = await getMsg('status_completed','💰 Status: Completed Successfully!');
+      
 
 
         //bot.sendMessage(GROUP_ID, `${groupMsg}\n🆔 ID: \`${pId}\`\n${depositCompletedStatus}`, { parse_mode: "Markdown" });
