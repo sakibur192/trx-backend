@@ -601,6 +601,12 @@ bot.on("callback_query", async (query) => {
         const depositFailedStatus = await getMsg('status_unsuccessful','Status: Unsuccessful.');
 
 
+
+          const groupCaption =
+        `${groupDepositRejected}\n` +
+        `🆔 ID: \`${pId}\`\n` +
+        `${depositFailedStatus}`;
+
    if (photoId) {
     
     } else {
