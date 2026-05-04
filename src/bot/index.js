@@ -972,11 +972,9 @@ bot.sendMessage(chatId, `${ocrSuccessTitle}\n━━━━━━━━━━━�
 
 
 
+        });
 
-
-
-
-);
+        
         } else {
             // If the scan failed to find one of the two, switch to manual mode
 
