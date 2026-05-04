@@ -202,8 +202,8 @@ async function startVerificationRetry(chatId, data) {
         `💰 *NEW DEPOSIT APPROVAL REQ*\n━━━━━━━━━━━━━━━\n` +
         `👤 ID: \`${playerId}\`\n` +
         `💵 Amt: ${amount}\n` +
-        `🔑 TRX: \`${match.trx_id}\`\n` +
-        `📱 Sender: ${match.sender}`,
+        `🔑 TRX: \`${trx_id}\`\n` 
+        ,
 
     reply_markup: {
         inline_keyboard: [
